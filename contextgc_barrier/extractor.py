@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 from typing import Set
 
-import spacy
-
 _NLP = None
+_NLP_ATTEMPTED = False
 
 
 # Domain-specific patterns for code context
@@ -28,28 +27,41 @@ class ExtractionResult:
 
 
 def _get_nlp():
-    global _NLP
-    if _NLP is None:
+    global _NLP, _NLP_ATTEMPTED
+    if _NLP_ATTEMPTED:
+        return _NLP
+
+    _NLP_ATTEMPTED = True
+    try:
+        import spacy
+
         try:
             _NLP = spacy.load("en_core_web_sm")
         except OSError:
             # Allow the package to run without the optional spaCy model.
             _NLP = spacy.blank("en")
+    except Exception:
+        # spaCy itself may be unavailable or incompatible with the local Python.
+        _NLP = None
     return _NLP
 
 
 def extract(text: str) -> ExtractionResult:
-    doc = _get_nlp()(text)
+    nlp = _get_nlp()
+    named_entities = set()
+    noun_phrases = set()
 
-    named_entities = {
-        ent.text.lower() for ent in doc.ents
-        if ent.label_ in ("PRODUCT", "ORG", "GPE", "PERSON", "EVENT", "WORK_OF_ART")
-    }
+    if nlp is not None:
+        doc = nlp(text)
+        named_entities = {
+            ent.text.lower() for ent in doc.ents
+            if ent.label_ in ("PRODUCT", "ORG", "GPE", "PERSON", "EVENT", "WORK_OF_ART")
+        }
 
-    noun_phrases = {
-        chunk.text.lower() for chunk in doc.noun_chunks
-        if len(chunk.text.split()) >= 2
-    } if doc.has_annotation("DEP") else set()
+        noun_phrases = {
+            chunk.text.lower() for chunk in doc.noun_chunks
+            if len(chunk.text.split()) >= 2
+        } if doc.has_annotation("DEP") else set()
 
     import re
     code_entities = set()

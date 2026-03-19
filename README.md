@@ -66,6 +66,15 @@ The short benchmark summary is in `benchmark/results/latest_run.md`.
 
 ## Try it
 
+Create and activate a local Python environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
+```
+
 Quick demo, no model download:
 
 ```bash
@@ -75,7 +84,7 @@ python -m contextgc_barrier.demo
 Real local benchmark:
 
 ```bash
-pip install ".[mlx]"
+python -m pip install -e ".[mlx]"
 python benchmark/run_benchmark.py --profile proof --window-budget 3072
 ```
 
