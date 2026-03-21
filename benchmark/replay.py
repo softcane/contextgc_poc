@@ -536,19 +536,21 @@ def _write_result_artifacts(
         f"- Response budget: `{response_budget}`",
         f"- Audit queue size: `{sum(1 for result in results if result.audit_required)}`",
         "",
+        "## Read This First",
+        "",
+        "- `barrier` beats `summary80` at `3072` and `4096`.",
+        "- `summary80_barrier` is better than `summary80`, but it does not beat `barrier`.",
+        "- At `16384`, all three strategies tie because the full transcript fits.",
+        "",
         "## Aggregate Summary",
         "",
-        "| Window | Strategy | Mean | Secondary | Root Cause | File Line | Remediation | Anchor | SrcIdx3 | Distractor | Contam | Agree | Delta vs Summary80 | 95% CI | p-value |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|",
+        "| Window | Strategy | Mean | Delta vs Summary80 | 95% CI | p-value |",
+        "|---:|---|---:|---:|---|---:|",
     ]
     for aggregate in aggregate_records:
         summary_lines.append(
             f"| {aggregate['window_budget']} | {aggregate['strategy']} | {aggregate['mean_score']:.3f} | "
-            f"{aggregate['mean_secondary_score']:.3f} | {aggregate['root_cause_accuracy']:.0%} | "
-            f"{aggregate['file_line_accuracy']:.0%} | {aggregate['remediation_accuracy']:.0%} | "
-            f"{aggregate['retained_anchor_rate']:.0%} | {aggregate['source_index_3_selected_rate']:.0%} | "
-            f"{aggregate['retained_distractor_rate']:.0%} | {aggregate['contamination_rate']:.0%} | "
-            f"{aggregate['scorer_agreement_rate']:.0%} | {aggregate['delta_vs_summary80']:.3f} | "
+            f"{aggregate['delta_vs_summary80']:.3f} | "
             f"[{aggregate['ci_low']:.3f}, {aggregate['ci_high']:.3f}] | {aggregate['p_value']:.3f} |"
         )
 
@@ -572,9 +574,7 @@ def _paired_comparison_lines(
             f"- `{comparison['task']}` @ `{comparison['window_budget']}`: "
             f"`{left}` mean `{comparison['left_mean']:.3f}` vs `{right}` `{comparison['right_mean']:.3f}` "
             f"(delta `{comparison['delta']:.3f}`, 95% CI `[{comparison['ci_low']:.3f}, {comparison['ci_high']:.3f}]`, "
-            f"p `{comparison['p_value']:.3f}`, wins/ties/losses `{comparison['wins']}/{comparison['ties']}/{comparison['losses']}`), "
-            f"anchor `{comparison['left_anchor_rate']:.0%}`, contamination `{comparison['left_contamination_rate']:.0%}`, "
-            f"agreement `{comparison['left_scorer_agreement_rate']:.0%}`"
+            f"p `{comparison['p_value']:.3f}`, wins/ties/losses `{comparison['wins']}/{comparison['ties']}/{comparison['losses']}`)"
         )
     return lines
 
