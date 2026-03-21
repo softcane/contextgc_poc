@@ -12,15 +12,15 @@ The repo compares three strategies:
 
 It is not trying to solve "general AI memory." It is trying to measure exact context retention under pressure.
 
-![Minimal example output](assets/demo-output.svg)
-
 ## In One Minute
 
 If you only want the headline:
 
-- `summary80` is the lossy baseline.
-- `barrier` keeps the right raw older messages and clearly beats `summary80` on the current debugging replay benchmark.
-- `summary80_barrier` is a reasonable hybrid, but on the current replay it does not beat plain `barrier`.
+| Strategy | What it does | Current replay result |
+|---|---|---|
+| `summary80` | Compress older context into a rolling summary. | Weak baseline under tight budgets. |
+| `barrier` | Keep the most relevant older raw messages. | Best performer in the current debugging replay benchmark. |
+| `summary80_barrier` | Summarize first, then add back protected raw exceptions. | Better than `summary80`, but not better than `barrier` on the current replay. |
 
 ## The Three Strategies
 
@@ -214,14 +214,22 @@ I checked the `24` flagged rows in [audit_queue.jsonl](/Users/pradeepsingh/code/
 
 Manual read of the flagged rows says the benchmark is publishable with one honest caveat: a few rows still depend on scorer interpretation, so the claim should stay narrow and benchmark-specific.
 
-## What Not To Claim
+## Scope
 
-- Do not say this proves a general memory system.
-- Do not say the hybrid is better than `barrier`; it is not, on the current replay.
-- Do not say this is production proof. It is a strong benchmark result, not a deployment study.
+The current repo supports one narrow claim well:
 
-The repo no longer treats `score_only`, `recency`, or `full_history` as active benchmark strategies.
+Keeping the right raw context is better than replacing old context with a lossy rolling summary on this debugging replay benchmark.
 
-## Publish Set
+It does not yet support bigger claims like:
 
-For a clean public repo, treat [benchmark/results/debugging_replay](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay) as the current result set.
+- "we solved long-term memory"
+- "the hybrid is better than plain barrier"
+- "this is already proven in production"
+
+Also, the active codebase now only uses the three strategies in this README: `summary80`, `barrier`, and `summary80_barrier`.
+
+## Which Results To Cite
+
+If you reference results from this repo, use [benchmark/results/debugging_replay](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay).
+
+That is the current benchmark output and the one this README is describing. Older result folders were intermediate work during benchmark design and are not the main story anymore.
