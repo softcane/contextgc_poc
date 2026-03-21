@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Iterable, List, Optional
-from .extractor import extract, overlap_score
+from .extractor import ExtractorMode, extract, overlap_score
 from .registry import ChunkRegistry, ProtectionLevel
 
 CITATION_THRESHOLD = 0.15
@@ -24,11 +24,15 @@ class WriteBarrier:
         citation_threshold: float = CITATION_THRESHOLD,
         score_boost: float = CITATION_SCORE_BOOST,
         citable_roles: Iterable[str] = ("user", "tool"),
+        citation_enabled: bool = True,
+        extractor_mode: ExtractorMode = "spacy",
     ) -> None:
         self.registry = registry
         self.citation_threshold = citation_threshold
         self.score_boost = score_boost
         self.citable_roles = tuple(citable_roles)
+        self.citation_enabled = citation_enabled
+        self.extractor_mode = extractor_mode
         self._events: List[WriteBarrierResult] = []
 
     def process(
@@ -37,7 +41,7 @@ class WriteBarrier:
         turn: int = -1,
         task_keywords: Optional[Iterable[str]] = None,
     ) -> WriteBarrierResult:
-        response_extraction = extract(response_text)
+        response_extraction = extract(response_text, mode=self.extractor_mode)
         response_keywords = response_extraction.all_keywords
         active_task_keywords = set(task_keywords or [])
 
@@ -53,7 +57,7 @@ class WriteBarrier:
                 continue
 
             score = overlap_score(chunk.keywords, response_keywords)
-            if score >= self.citation_threshold:
+            if self.citation_enabled and score >= self.citation_threshold:
                 chunk.cite(turn=turn, score_boost=self.score_boost)
                 cited_ids.append(chunk.id)
                 cited_message_ids.add(chunk.message_id)
@@ -79,6 +83,8 @@ class WriteBarrier:
         return {
             "turns_processed": len(self._events),
             "total_citations": total_citations,
+            "citation_enabled": self.citation_enabled,
+            "extractor_mode": self.extractor_mode,
             "protected_chunks": len(
                 [
                     chunk

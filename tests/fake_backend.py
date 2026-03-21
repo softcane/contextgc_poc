@@ -1,15 +1,20 @@
 from typing import Any, Dict, List
+import re
+
+from benchmark.tasks import CODING_VALUES, DEBUGGING_VALUES, DOCUMENT_VALUES, SUPPORT_VALUES
 from contextgc_barrier.backend import make_response
 
-CRITICAL_DETAILS = [
-    ("process_batch", "process_batch()"),
-    ("batch_size > 1000", "batch_size > 1000"),
-    ("numpy cache", "numpy cache"),
-    ("v2.3", "v2.3"),
-    ("src/batch_processor.py", "src/batch_processor.py"),
-    ("200mb", "200MB"),
-    ("cache.clear()", "cache.clear()"),
-]
+
+def _flatten_aliases() -> list[str]:
+    aliases: list[str] = []
+    for pool_group in (DEBUGGING_VALUES, DOCUMENT_VALUES, CODING_VALUES, SUPPORT_VALUES):
+        for pool in pool_group.values():
+            for value_aliases in pool.values():
+                aliases.extend(value_aliases)
+    return sorted(set(aliases), key=len, reverse=True)
+
+
+KNOWN_ALIASES = _flatten_aliases()
 
 
 class FakeBackend:
@@ -17,47 +22,70 @@ class FakeBackend:
         return sum(self._message_tokens(message) for message in messages)
 
     def create(self, model: str, messages: List[Dict[str, str]], **kwargs: Any):
-        prompt_text = "\n".join(
-            str(message.get("content", "")).lower()
-            for message in messages
-        )
+        prompt_text_raw = "\n".join(str(message.get("content", "")) for message in messages)
+        prompt_text = prompt_text_raw.lower()
         last_user = next(
             (
-                str(message.get("content", "")).lower()
+                str(message.get("content", ""))
                 for message in reversed(messages)
                 if message.get("role") == "user"
             ),
             "",
         )
+        detected = self._detected_aliases(prompt_text_raw)
 
-        if "before i close this ticket" in last_user:
-            found = [response_text for needle, response_text in CRITICAL_DETAILS if needle in prompt_text]
-            if not found:
-                return make_response("I lost the earlier context. I only remember a cache cleanup idea.")
-            return make_response("Summary: " + "; ".join(found) + ".")
+        if "compress conversation state" in prompt_text or "working-memory bullets" in prompt_text:
+            bullets = detected[:4] or ["earlier context compressed"]
+            return make_response("Rolling summary:\n" + "\n".join(f"- {item}" for item in bullets))
 
-        if "memory leak happens specifically" in last_user:
-            return make_response(
-                "Initial read: process_batch() plus the numpy cache from v2.3 looks suspicious."
-            )
+        if self._looks_like_final_prompt(last_user.lower()):
+            if not detected:
+                return make_response("The active case details were lost in the noise.")
+            return make_response("Final note: " + "; ".join(detected[:8]) + ".")
 
-        if "thread-safety" in last_user or "cache.clear()" in last_user:
-            return make_response(
-                "Use cache.clear() behind a lock, but the bug still points to process_batch()."
-            )
+        if detected:
+            return make_response("Active details: " + "; ".join(detected[:5]) + ".")
 
-        if "where exactly would you patch" in last_user:
-            return make_response(
-                "Patch src/batch_processor.py around process_batch() and clear the numpy cache."
-            )
-
-        if "log dump" in last_user:
-            return make_response(
-                "The logs are noisy, but process_batch() still matches the RSS growth pattern."
-            )
-
-        return make_response("I am still checking process_batch() and the numpy cache.")
+        return make_response("I only have a high-level read of the active case.")
 
     def _message_tokens(self, message: Dict[str, str]) -> int:
         content = str(message.get("content", ""))
         return len(content.split()) + 4
+
+    def _detected_aliases(self, prompt_text: str) -> list[str]:
+        found: list[tuple[int, str]] = []
+        lowered = prompt_text.lower()
+        for alias in KNOWN_ALIASES:
+            pattern = re.escape(alias).replace(r"\ ", r"\s+")
+            match = re.search(pattern, lowered, re.IGNORECASE)
+            if match:
+                found.append((match.start(), alias))
+        found.sort(key=lambda item: (item[0], -len(item[1])))
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for _, alias in found:
+            normalized = re.sub(r"[^a-z0-9@/._:-]+", " ", alias.lower()).strip()
+            if normalized in seen:
+                continue
+            ordered.append(alias)
+            seen.add(normalized)
+        return ordered
+
+    def _looks_like_final_prompt(self, last_user: str) -> bool:
+        return any(
+            phrase in last_user
+            for phrase in (
+                "release manager",
+                "postmortem close note",
+                "engineering handoff paragraph",
+                "reply to counsel",
+                "final policy answer",
+                "compliance response",
+                "release handoff paragraph",
+                "handoff note for the active rollout",
+                "draft the rollout summary",
+                "support lead will send",
+                "closing note for the active customer case",
+                "final customer response",
+            )
+        )

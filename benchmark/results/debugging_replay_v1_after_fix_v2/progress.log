@@ -1,0 +1,456 @@
+[start] profile=debugging_replay_v1 model=mlx-community/Qwen3.5-4B-OptiQ-4bit response_budget=128 accepted_per_template=10 target_total_tokens=5200 target_token_tolerance=150 constrained_windows=3072,4096 oracle_window=16384 max_source_seed=500
+[corpus] template=incident_closeout status=starting accepted_target=10 target_total_tokens=5200 oracle_window=16384
+[corpus] template=incident_closeout source_seed=1 status=materializing
+[corpus] template=incident_closeout source_seed=1 status=accepted transcript_id=incident_closeout-01 prompt_tokens=5155 oracle_score=1.000 calibrated_source_target=4487 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=2 status=materializing
+[corpus] template=incident_closeout source_seed=2 status=accepted transcript_id=incident_closeout-02 prompt_tokens=5128 oracle_score=1.000 calibrated_source_target=4450 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=3 status=materializing
+[corpus] template=incident_closeout source_seed=3 status=accepted transcript_id=incident_closeout-03 prompt_tokens=5187 oracle_score=1.000 calibrated_source_target=4492 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=4 status=materializing
+[corpus] template=incident_closeout source_seed=4 status=accepted transcript_id=incident_closeout-04 prompt_tokens=5128 oracle_score=1.000 calibrated_source_target=4460 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=5 status=materializing
+[corpus] template=incident_closeout source_seed=5 status=accepted transcript_id=incident_closeout-05 prompt_tokens=5159 oracle_score=0.857 calibrated_source_target=4488 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=6 status=materializing
+[corpus] template=incident_closeout source_seed=6 status=accepted transcript_id=incident_closeout-06 prompt_tokens=5110 oracle_score=1.000 calibrated_source_target=4458 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=7 status=materializing
+[corpus] template=incident_closeout source_seed=7 status=accepted transcript_id=incident_closeout-07 prompt_tokens=5129 oracle_score=1.000 calibrated_source_target=4450 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=8 status=materializing
+[corpus] template=incident_closeout source_seed=8 status=accepted transcript_id=incident_closeout-08 prompt_tokens=5142 oracle_score=1.000 calibrated_source_target=4437 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=9 status=materializing
+[corpus] template=incident_closeout source_seed=9 status=accepted transcript_id=incident_closeout-09 prompt_tokens=5163 oracle_score=1.000 calibrated_source_target=4492 calibration_attempts=2
+[corpus] template=incident_closeout source_seed=10 status=materializing
+[corpus] template=incident_closeout source_seed=10 status=accepted transcript_id=incident_closeout-10 prompt_tokens=5125 oracle_score=1.000 calibrated_source_target=4464 calibration_attempts=2
+[corpus] template=incident_closeout status=completed accepted=10
+[corpus] template=root_cause_recap status=starting accepted_target=10 target_total_tokens=5200 oracle_window=16384
+[corpus] template=root_cause_recap source_seed=1 status=materializing
+[corpus] template=root_cause_recap source_seed=1 status=accepted transcript_id=root_cause_recap-01 prompt_tokens=5130 oracle_score=1.000 calibrated_source_target=4456 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=2 status=materializing
+[corpus] template=root_cause_recap source_seed=2 status=rejected reason=oracle_gate score=0.714 wrong=- missing=symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=3 status=materializing
+[corpus] template=root_cause_recap source_seed=3 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=4 status=materializing
+[corpus] template=root_cause_recap source_seed=4 status=rejected reason=oracle_gate score=0.571 wrong=- missing=trigger,root_cause,remediation contamination=0
+[corpus] template=root_cause_recap source_seed=5 status=materializing
+[corpus] template=root_cause_recap source_seed=5 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=6 status=materializing
+[corpus] template=root_cause_recap source_seed=6 status=rejected reason=oracle_gate score=0.714 wrong=- missing=trigger,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=7 status=materializing
+[corpus] template=root_cause_recap source_seed=7 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=8 status=materializing
+[corpus] template=root_cause_recap source_seed=8 status=rejected reason=oracle_gate score=0.571 wrong=- missing=trigger,symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=9 status=materializing
+[corpus] template=root_cause_recap source_seed=9 status=rejected reason=oracle_gate score=0.714 wrong=- missing=trigger,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=10 status=materializing
+[corpus] template=root_cause_recap source_seed=10 status=accepted transcript_id=root_cause_recap-02 prompt_tokens=5078 oracle_score=1.000 calibrated_source_target=4583 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=11 status=materializing
+[corpus] template=root_cause_recap source_seed=11 status=accepted transcript_id=root_cause_recap-03 prompt_tokens=5175 oracle_score=1.000 calibrated_source_target=4556 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=12 status=materializing
+[corpus] template=root_cause_recap source_seed=12 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=13 status=materializing
+[corpus] template=root_cause_recap source_seed=13 status=rejected reason=oracle_gate score=0.714 wrong=- missing=symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=14 status=materializing
+[corpus] template=root_cause_recap source_seed=14 status=rejected reason=oracle_gate score=0.571 wrong=- missing=symptom,root_cause,remediation contamination=0
+[corpus] template=root_cause_recap source_seed=15 status=materializing
+[corpus] template=root_cause_recap source_seed=15 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=16 status=materializing
+[corpus] template=root_cause_recap source_seed=16 status=rejected reason=oracle_gate score=0.714 wrong=- missing=symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=17 status=materializing
+[corpus] template=root_cause_recap source_seed=17 status=accepted transcript_id=root_cause_recap-04 prompt_tokens=5064 oracle_score=1.000 calibrated_source_target=4496 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=18 status=materializing
+[corpus] template=root_cause_recap source_seed=18 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=19 status=materializing
+[corpus] template=root_cause_recap source_seed=19 status=rejected reason=oracle_gate score=0.714 wrong=- missing=root_cause,remediation contamination=0
+[corpus] template=root_cause_recap source_seed=20 status=materializing
+[corpus] template=root_cause_recap source_seed=20 status=rejected reason=oracle_gate score=0.714 wrong=- missing=symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=21 status=materializing
+[corpus] template=root_cause_recap source_seed=21 status=rejected reason=oracle_gate score=0.714 wrong=- missing=trigger,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=22 status=materializing
+[corpus] template=root_cause_recap source_seed=22 status=rejected reason=oracle_gate score=0.571 wrong=- missing=trigger,symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=23 status=materializing
+[corpus] template=root_cause_recap source_seed=23 status=accepted transcript_id=root_cause_recap-05 prompt_tokens=5198 oracle_score=0.857 calibrated_source_target=4692 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=24 status=materializing
+[corpus] template=root_cause_recap source_seed=24 status=rejected reason=oracle_gate score=0.714 wrong=- missing=root_cause,remediation contamination=0
+[corpus] template=root_cause_recap source_seed=25 status=materializing
+[corpus] template=root_cause_recap source_seed=25 status=rejected reason=oracle_gate score=0.714 wrong=- missing=symptom,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=26 status=materializing
+[corpus] template=root_cause_recap source_seed=26 status=accepted transcript_id=root_cause_recap-06 prompt_tokens=5117 oracle_score=0.857 calibrated_source_target=4529 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=27 status=materializing
+[corpus] template=root_cause_recap source_seed=27 status=rejected reason=oracle_gate score=0.714 wrong=- missing=trigger,root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=28 status=materializing
+[corpus] template=root_cause_recap source_seed=28 status=accepted transcript_id=root_cause_recap-07 prompt_tokens=5156 oracle_score=1.000 calibrated_source_target=4660 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=29 status=materializing
+[corpus] template=root_cause_recap source_seed=29 status=accepted transcript_id=root_cause_recap-08 prompt_tokens=5149 oracle_score=0.857 calibrated_source_target=4594 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=30 status=materializing
+[corpus] template=root_cause_recap source_seed=30 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=31 status=materializing
+[corpus] template=root_cause_recap source_seed=31 status=rejected reason=oracle_gate score=0.429 wrong=- missing=trigger,symptom,root_cause,remediation contamination=0
+[corpus] template=root_cause_recap source_seed=32 status=materializing
+[corpus] template=root_cause_recap source_seed=32 status=accepted transcript_id=root_cause_recap-09 prompt_tokens=5188 oracle_score=0.857 calibrated_source_target=4583 calibration_attempts=2
+[corpus] template=root_cause_recap source_seed=33 status=materializing
+[corpus] template=root_cause_recap source_seed=33 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=34 status=materializing
+[corpus] template=root_cause_recap source_seed=34 status=rejected reason=oracle_gate score=0.857 wrong=- missing=root_cause contamination=0
+[corpus] template=root_cause_recap source_seed=35 status=materializing
+[corpus] template=root_cause_recap source_seed=35 status=accepted transcript_id=root_cause_recap-10 prompt_tokens=5160 oracle_score=1.000 calibrated_source_target=4548 calibration_attempts=2
+[corpus] template=root_cause_recap status=completed accepted=10
+[eval] transcript=incident_closeout-01 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-01 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2497
+[eval] transcript=incident_closeout-01 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-01 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1760
+[eval] transcript=incident_closeout-01 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-01 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2299
+[eval] transcript=incident_closeout-01 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-01 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2299
+[eval] transcript=incident_closeout-01 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-01 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3825
+[eval] transcript=incident_closeout-01 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-01 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1760
+[eval] transcript=incident_closeout-01 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-01 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3627
+[eval] transcript=incident_closeout-01 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-01 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3627
+[eval] transcript=incident_closeout-01 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-01 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5155
+[eval] transcript=incident_closeout-02 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-02 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2477
+[eval] transcript=incident_closeout-02 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-02 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1736
+[eval] transcript=incident_closeout-02 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-02 window=3072 strategy=score_only status=completed score=0.857 prompt_tokens=2279
+[eval] transcript=incident_closeout-02 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-02 window=3072 strategy=barrier status=completed score=0.857 prompt_tokens=2279
+[eval] transcript=incident_closeout-02 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-02 window=4096 strategy=recency status=completed score=0.857 prompt_tokens=3802
+[eval] transcript=incident_closeout-02 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-02 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1736
+[eval] transcript=incident_closeout-02 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-02 window=4096 strategy=score_only status=completed score=0.857 prompt_tokens=3604
+[eval] transcript=incident_closeout-02 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-02 window=4096 strategy=barrier status=completed score=0.857 prompt_tokens=3604
+[eval] transcript=incident_closeout-02 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-02 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5128
+[eval] transcript=incident_closeout-03 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-03 window=3072 strategy=recency status=completed score=0.857 prompt_tokens=2484
+[eval] transcript=incident_closeout-03 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-03 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1749
+[eval] transcript=incident_closeout-03 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-03 window=3072 strategy=score_only status=completed score=0.857 prompt_tokens=2243
+[eval] transcript=incident_closeout-03 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-03 window=3072 strategy=barrier status=completed score=0.857 prompt_tokens=2243
+[eval] transcript=incident_closeout-03 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-03 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3806
+[eval] transcript=incident_closeout-03 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-03 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1749
+[eval] transcript=incident_closeout-03 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-03 window=4096 strategy=score_only status=completed score=0.857 prompt_tokens=3565
+[eval] transcript=incident_closeout-03 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-03 window=4096 strategy=barrier status=completed score=0.857 prompt_tokens=3565
+[eval] transcript=incident_closeout-03 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-03 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5187
+[eval] transcript=incident_closeout-04 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-04 window=3072 strategy=recency status=completed score=0.857 prompt_tokens=2471
+[eval] transcript=incident_closeout-04 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-04 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1732
+[eval] transcript=incident_closeout-04 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-04 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2274
+[eval] transcript=incident_closeout-04 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-04 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2274
+[eval] transcript=incident_closeout-04 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-04 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3800
+[eval] transcript=incident_closeout-04 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-04 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1732
+[eval] transcript=incident_closeout-04 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-04 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3603
+[eval] transcript=incident_closeout-04 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-04 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3603
+[eval] transcript=incident_closeout-04 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-04 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5128
+[eval] transcript=incident_closeout-05 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-05 window=3072 strategy=recency status=completed score=0.857 prompt_tokens=2489
+[eval] transcript=incident_closeout-05 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-05 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1760
+[eval] transcript=incident_closeout-05 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-05 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2292
+[eval] transcript=incident_closeout-05 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-05 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2292
+[eval] transcript=incident_closeout-05 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-05 window=4096 strategy=recency status=completed score=0.857 prompt_tokens=3830
+[eval] transcript=incident_closeout-05 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-05 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1760
+[eval] transcript=incident_closeout-05 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-05 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3633
+[eval] transcript=incident_closeout-05 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-05 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3633
+[eval] transcript=incident_closeout-05 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-05 window=16384 strategy=full_history status=completed score=0.857 prompt_tokens=5159
+[eval] transcript=incident_closeout-06 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-06 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2460
+[eval] transcript=incident_closeout-06 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-06 window=3072 strategy=summary80 status=completed score=0.286 prompt_tokens=1736
+[eval] transcript=incident_closeout-06 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-06 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2219
+[eval] transcript=incident_closeout-06 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-06 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2219
+[eval] transcript=incident_closeout-06 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-06 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3784
+[eval] transcript=incident_closeout-06 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-06 window=4096 strategy=summary80 status=completed score=0.286 prompt_tokens=1736
+[eval] transcript=incident_closeout-06 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-06 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3543
+[eval] transcript=incident_closeout-06 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-06 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3543
+[eval] transcript=incident_closeout-06 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-06 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5110
+[eval] transcript=incident_closeout-07 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-07 window=3072 strategy=recency status=completed score=0.786 prompt_tokens=2465
+[eval] transcript=incident_closeout-07 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-07 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1740
+[eval] transcript=incident_closeout-07 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-07 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2224
+[eval] transcript=incident_closeout-07 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-07 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2224
+[eval] transcript=incident_closeout-07 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-07 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3800
+[eval] transcript=incident_closeout-07 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-07 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1740
+[eval] transcript=incident_closeout-07 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-07 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3559
+[eval] transcript=incident_closeout-07 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-07 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3559
+[eval] transcript=incident_closeout-07 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-07 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5129
+[eval] transcript=incident_closeout-08 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-08 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2485
+[eval] transcript=incident_closeout-08 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-08 window=3072 strategy=summary80 status=completed score=0.000 prompt_tokens=1758
+[eval] transcript=incident_closeout-08 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-08 window=3072 strategy=score_only status=completed score=0.786 prompt_tokens=2245
+[eval] transcript=incident_closeout-08 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-08 window=3072 strategy=barrier status=completed score=0.786 prompt_tokens=2245
+[eval] transcript=incident_closeout-08 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-08 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3801
+[eval] transcript=incident_closeout-08 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-08 window=4096 strategy=summary80 status=completed score=0.000 prompt_tokens=1758
+[eval] transcript=incident_closeout-08 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-08 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3561
+[eval] transcript=incident_closeout-08 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-08 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3561
+[eval] transcript=incident_closeout-08 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-08 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5142
+[eval] transcript=incident_closeout-09 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-09 window=3072 strategy=recency status=completed score=0.643 prompt_tokens=2485
+[eval] transcript=incident_closeout-09 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-09 window=3072 strategy=summary80 status=completed score=0.429 prompt_tokens=1754
+[eval] transcript=incident_closeout-09 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-09 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2286
+[eval] transcript=incident_closeout-09 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-09 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2286
+[eval] transcript=incident_closeout-09 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-09 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3821
+[eval] transcript=incident_closeout-09 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-09 window=4096 strategy=summary80 status=completed score=0.429 prompt_tokens=1754
+[eval] transcript=incident_closeout-09 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-09 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3622
+[eval] transcript=incident_closeout-09 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-09 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3622
+[eval] transcript=incident_closeout-09 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-09 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5163
+[eval] transcript=incident_closeout-10 window=3072 strategy=recency status=running
+[eval] transcript=incident_closeout-10 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2469
+[eval] transcript=incident_closeout-10 window=3072 strategy=summary80 status=running
+[eval] transcript=incident_closeout-10 window=3072 strategy=summary80 status=completed score=0.286 prompt_tokens=1711
+[eval] transcript=incident_closeout-10 window=3072 strategy=score_only status=running
+[eval] transcript=incident_closeout-10 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2272
+[eval] transcript=incident_closeout-10 window=3072 strategy=barrier status=running
+[eval] transcript=incident_closeout-10 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2272
+[eval] transcript=incident_closeout-10 window=4096 strategy=recency status=running
+[eval] transcript=incident_closeout-10 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3800
+[eval] transcript=incident_closeout-10 window=4096 strategy=summary80 status=running
+[eval] transcript=incident_closeout-10 window=4096 strategy=summary80 status=completed score=0.071 prompt_tokens=3172
+[eval] transcript=incident_closeout-10 window=4096 strategy=score_only status=running
+[eval] transcript=incident_closeout-10 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3603
+[eval] transcript=incident_closeout-10 window=4096 strategy=barrier status=running
+[eval] transcript=incident_closeout-10 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3603
+[eval] transcript=incident_closeout-10 window=16384 strategy=full_history status=running
+[eval] transcript=incident_closeout-10 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5125
+[eval] transcript=root_cause_recap-01 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-01 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2476
+[eval] transcript=root_cause_recap-01 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-01 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1663
+[eval] transcript=root_cause_recap-01 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-01 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2427
+[eval] transcript=root_cause_recap-01 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-01 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2427
+[eval] transcript=root_cause_recap-01 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-01 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3800
+[eval] transcript=root_cause_recap-01 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-01 window=4096 strategy=summary80 status=completed score=0.500 prompt_tokens=3142
+[eval] transcript=root_cause_recap-01 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-01 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3751
+[eval] transcript=root_cause_recap-01 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-01 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3751
+[eval] transcript=root_cause_recap-01 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-01 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5130
+[eval] transcript=root_cause_recap-02 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-02 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2336
+[eval] transcript=root_cause_recap-02 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-02 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1673
+[eval] transcript=root_cause_recap-02 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-02 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2307
+[eval] transcript=root_cause_recap-02 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-02 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2307
+[eval] transcript=root_cause_recap-02 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-02 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3707
+[eval] transcript=root_cause_recap-02 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-02 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=3158
+[eval] transcript=root_cause_recap-02 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-02 window=4096 strategy=score_only status=completed score=1.000 prompt_tokens=3678
+[eval] transcript=root_cause_recap-02 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-02 window=4096 strategy=barrier status=completed score=1.000 prompt_tokens=3678
+[eval] transcript=root_cause_recap-02 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-02 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5078
+[eval] transcript=root_cause_recap-03 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-03 window=3072 strategy=recency status=completed score=0.571 prompt_tokens=2457
+[eval] transcript=root_cause_recap-03 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-03 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1702
+[eval] transcript=root_cause_recap-03 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-03 window=3072 strategy=score_only status=completed score=0.857 prompt_tokens=2404
+[eval] transcript=root_cause_recap-03 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-03 window=3072 strategy=barrier status=completed score=0.857 prompt_tokens=2404
+[eval] transcript=root_cause_recap-03 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-03 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3835
+[eval] transcript=root_cause_recap-03 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-03 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1702
+[eval] transcript=root_cause_recap-03 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-03 window=4096 strategy=score_only status=completed score=0.857 prompt_tokens=3782
+[eval] transcript=root_cause_recap-03 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-03 window=4096 strategy=barrier status=completed score=0.857 prompt_tokens=3782
+[eval] transcript=root_cause_recap-03 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-03 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5175
+[eval] transcript=root_cause_recap-04 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-04 window=3072 strategy=recency status=completed score=0.857 prompt_tokens=2409
+[eval] transcript=root_cause_recap-04 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-04 window=3072 strategy=summary80 status=completed score=0.714 prompt_tokens=1649
+[eval] transcript=root_cause_recap-04 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-04 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2303
+[eval] transcript=root_cause_recap-04 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-04 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2303
+[eval] transcript=root_cause_recap-04 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-04 window=4096 strategy=recency status=completed score=0.714 prompt_tokens=3732
+[eval] transcript=root_cause_recap-04 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-04 window=4096 strategy=summary80 status=completed score=0.714 prompt_tokens=3104
+[eval] transcript=root_cause_recap-04 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-04 window=4096 strategy=score_only status=completed score=0.857 prompt_tokens=3626
+[eval] transcript=root_cause_recap-04 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-04 window=4096 strategy=barrier status=completed score=0.857 prompt_tokens=3626
+[eval] transcript=root_cause_recap-04 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-04 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5064
+[eval] transcript=root_cause_recap-05 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-05 window=3072 strategy=recency status=completed score=0.714 prompt_tokens=2415
+[eval] transcript=root_cause_recap-05 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-05 window=3072 strategy=summary80 status=completed score=0.714 prompt_tokens=1694
+[eval] transcript=root_cause_recap-05 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-05 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2315
+[eval] transcript=root_cause_recap-05 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-05 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2315
+[eval] transcript=root_cause_recap-05 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-05 window=4096 strategy=recency status=completed score=0.714 prompt_tokens=3804
+[eval] transcript=root_cause_recap-05 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-05 window=4096 strategy=summary80 status=completed score=0.714 prompt_tokens=1694
+[eval] transcript=root_cause_recap-05 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-05 window=4096 strategy=score_only status=completed score=0.714 prompt_tokens=3700
+[eval] transcript=root_cause_recap-05 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-05 window=4096 strategy=barrier status=completed score=0.714 prompt_tokens=3700
+[eval] transcript=root_cause_recap-05 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-05 window=16384 strategy=full_history status=completed score=0.857 prompt_tokens=5198
+[eval] transcript=root_cause_recap-06 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-06 window=3072 strategy=recency status=completed score=0.714 prompt_tokens=2409
+[eval] transcript=root_cause_recap-06 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-06 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1658
+[eval] transcript=root_cause_recap-06 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-06 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2374
+[eval] transcript=root_cause_recap-06 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-06 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2374
+[eval] transcript=root_cause_recap-06 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-06 window=4096 strategy=recency status=completed score=0.714 prompt_tokens=3736
+[eval] transcript=root_cause_recap-06 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-06 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=3112
+[eval] transcript=root_cause_recap-06 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-06 window=4096 strategy=score_only status=completed score=0.714 prompt_tokens=3701
+[eval] transcript=root_cause_recap-06 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-06 window=4096 strategy=barrier status=completed score=0.714 prompt_tokens=3701
+[eval] transcript=root_cause_recap-06 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-06 window=16384 strategy=full_history status=completed score=0.857 prompt_tokens=5117
+[eval] transcript=root_cause_recap-07 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-07 window=3072 strategy=recency status=completed score=1.000 prompt_tokens=2394
+[eval] transcript=root_cause_recap-07 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-07 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1670
+[eval] transcript=root_cause_recap-07 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-07 window=3072 strategy=score_only status=completed score=1.000 prompt_tokens=2363
+[eval] transcript=root_cause_recap-07 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-07 window=3072 strategy=barrier status=completed score=1.000 prompt_tokens=2363
+[eval] transcript=root_cause_recap-07 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-07 window=4096 strategy=recency status=completed score=1.000 prompt_tokens=3771
+[eval] transcript=root_cause_recap-07 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-07 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1670
+[eval] transcript=root_cause_recap-07 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-07 window=4096 strategy=score_only status=completed score=0.857 prompt_tokens=3740
+[eval] transcript=root_cause_recap-07 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-07 window=4096 strategy=barrier status=completed score=0.857 prompt_tokens=3740
+[eval] transcript=root_cause_recap-07 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-07 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5156
+[eval] transcript=root_cause_recap-08 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-08 window=3072 strategy=recency status=completed score=0.857 prompt_tokens=2399
+[eval] transcript=root_cause_recap-08 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-08 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1694
+[eval] transcript=root_cause_recap-08 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-08 window=3072 strategy=score_only status=completed score=0.857 prompt_tokens=2361
+[eval] transcript=root_cause_recap-08 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-08 window=3072 strategy=barrier status=completed score=0.857 prompt_tokens=2361
+[eval] transcript=root_cause_recap-08 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-08 window=4096 strategy=recency status=completed score=0.714 prompt_tokens=3766
+[eval] transcript=root_cause_recap-08 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-08 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1694
+[eval] transcript=root_cause_recap-08 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-08 window=4096 strategy=score_only status=completed score=0.714 prompt_tokens=3728
+[eval] transcript=root_cause_recap-08 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-08 window=4096 strategy=barrier status=completed score=0.714 prompt_tokens=3728
+[eval] transcript=root_cause_recap-08 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-08 window=16384 strategy=full_history status=completed score=0.857 prompt_tokens=5149
+[eval] transcript=root_cause_recap-09 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-09 window=3072 strategy=recency status=completed score=0.714 prompt_tokens=2428
+[eval] transcript=root_cause_recap-09 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-09 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1687
+[eval] transcript=root_cause_recap-09 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-09 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2282
+[eval] transcript=root_cause_recap-09 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-09 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2282
+[eval] transcript=root_cause_recap-09 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-09 window=4096 strategy=recency status=completed score=0.571 prompt_tokens=3806
+[eval] transcript=root_cause_recap-09 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-09 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1687
+[eval] transcript=root_cause_recap-09 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-09 window=4096 strategy=score_only status=completed score=0.571 prompt_tokens=3656
+[eval] transcript=root_cause_recap-09 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-09 window=4096 strategy=barrier status=completed score=0.571 prompt_tokens=3656
+[eval] transcript=root_cause_recap-09 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-09 window=16384 strategy=full_history status=completed score=0.857 prompt_tokens=5188
+[eval] transcript=root_cause_recap-10 window=3072 strategy=recency status=running
+[eval] transcript=root_cause_recap-10 window=3072 strategy=recency status=completed score=0.714 prompt_tokens=2395
+[eval] transcript=root_cause_recap-10 window=3072 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-10 window=3072 strategy=summary80 status=completed score=0.571 prompt_tokens=1694
+[eval] transcript=root_cause_recap-10 window=3072 strategy=score_only status=running
+[eval] transcript=root_cause_recap-10 window=3072 strategy=score_only status=completed score=0.714 prompt_tokens=2308
+[eval] transcript=root_cause_recap-10 window=3072 strategy=barrier status=running
+[eval] transcript=root_cause_recap-10 window=3072 strategy=barrier status=completed score=0.714 prompt_tokens=2308
+[eval] transcript=root_cause_recap-10 window=4096 strategy=recency status=running
+[eval] transcript=root_cause_recap-10 window=4096 strategy=recency status=completed score=0.714 prompt_tokens=3777
+[eval] transcript=root_cause_recap-10 window=4096 strategy=summary80 status=running
+[eval] transcript=root_cause_recap-10 window=4096 strategy=summary80 status=completed score=0.571 prompt_tokens=1694
+[eval] transcript=root_cause_recap-10 window=4096 strategy=score_only status=running
+[eval] transcript=root_cause_recap-10 window=4096 strategy=score_only status=completed score=0.714 prompt_tokens=3690
+[eval] transcript=root_cause_recap-10 window=4096 strategy=barrier status=running
+[eval] transcript=root_cause_recap-10 window=4096 strategy=barrier status=completed score=0.714 prompt_tokens=3690
+[eval] transcript=root_cause_recap-10 window=16384 strategy=full_history status=running
+[eval] transcript=root_cause_recap-10 window=16384 strategy=full_history status=completed score=1.000 prompt_tokens=5160
+[done] profile=debugging_replay_v1 transcripts=20 runs=180 artifacts_written=yes

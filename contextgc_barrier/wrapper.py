@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+from .backend import make_response
 from .barrier import WriteBarrier
 from .chunker import chunk_message
-from .extractor import extract
+from .extractor import ExtractorMode, extract
 from .registry import (
     ChunkRegistry,
     ContextMessage,
@@ -27,6 +28,8 @@ class ContextGCBarrier:
         strategy: str = "barrier",
         sticky_recent_messages: int = 4,
         citable_roles: tuple[str, ...] = ("user", "tool"),
+        citation_enabled: bool = True,
+        extractor_mode: ExtractorMode = "spacy",
     ) -> None:
         if strategy not in {"barrier", "recency"}:
             raise ValueError("strategy must be 'barrier' or 'recency'")
@@ -36,10 +39,14 @@ class ContextGCBarrier:
         self.response_budget = response_budget
         self.strategy = strategy
         self.sticky_recent_messages = sticky_recent_messages
+        self.citation_enabled = citation_enabled
+        self.extractor_mode = extractor_mode
         self.registry = ChunkRegistry()
         self.barrier = WriteBarrier(
             registry=self.registry,
             citable_roles=citable_roles,
+            citation_enabled=citation_enabled,
+            extractor_mode=extractor_mode,
         )
         self._turn = 0
         self._task_keywords: set[str] = set()
@@ -49,17 +56,7 @@ class ContextGCBarrier:
         self._last_selection = MessageSelection([], [], 0)
 
     def chat(self, model: str, messages: List[Dict], **kwargs) -> Any:
-        self._turn += 1
-        self._last_model = model
-        self._register_new_messages(model=model, messages=messages)
-        self._update_task_keywords(messages)
-        score_all_chunks(
-            chunks=self.registry.all(),
-            current_turn=self._turn,
-            task_keywords=self._task_keywords,
-        )
-
-        selection = self._select_messages(model=model, messages=messages)
+        selection = self._begin_turn(model=model, messages=messages)
         selected_messages = [messages[index] for index in selection.selected_indexes]
         max_tokens = kwargs.pop("max_tokens", self.response_budget)
         response = self.backend.create(
@@ -71,31 +68,52 @@ class ContextGCBarrier:
         )
 
         response_text = response.choices[0].message.content or ""
-        barrier_result = self.barrier.process(
+        return self._finish_turn(
+            messages=messages,
+            selection=selection,
+            selected_messages=selected_messages,
+            response=response,
             response_text=response_text,
-            turn=self._turn,
-            task_keywords=self._task_keywords,
-        )
-        score_all_chunks(
-            chunks=self.registry.all(),
-            current_turn=self._turn,
-            task_keywords=self._task_keywords,
         )
 
-        self._last_messages = list(messages)
-        self._last_selection = selection
-        response._cgc_barrier_result = barrier_result
-        response._cgc_context_state = self.context_state()
-        response._cgc_selected_messages = selected_messages
-        response._cgc_prompt_tokens = selection.prompt_tokens
-        response._cgc_strategy = self.strategy
-        return response
+    def replay_turn(
+        self,
+        model: str,
+        messages_before_reply: List[Dict[str, str]],
+        reply_text: str,
+        **kwargs: Any,
+    ) -> Any:
+        selection = self._begin_turn(model=model, messages=messages_before_reply)
+        selected_messages = [
+            messages_before_reply[index]
+            for index in selection.selected_indexes
+        ]
+        response = make_response(reply_text)
+        if "max_tokens" in kwargs:
+            response._cgc_max_tokens = kwargs["max_tokens"]
+        return self._finish_turn(
+            messages=messages_before_reply,
+            selection=selection,
+            selected_messages=selected_messages,
+            response=response,
+            response_text=reply_text,
+        )
 
     def context_state(self) -> Dict:
         messages = self._last_messages
         selected_indexes = set(self._last_selection.selected_indexes)
         protected_messages = self.registry.protected_message_ids()
         cited_messages = self.registry.cited_message_ids()
+        protected_indexes = sorted(
+            self.registry.get_message(message_id).index
+            for message_id in protected_messages
+            if self.registry.get_message(message_id) is not None
+        )
+        cited_indexes = sorted(
+            self.registry.get_message(message_id).index
+            for message_id in cited_messages
+            if self.registry.get_message(message_id) is not None
+        )
         stats = self.registry.stats()
 
         return {
@@ -103,12 +121,16 @@ class ContextGCBarrier:
             "strategy": self.strategy,
             "window_budget": self.window_budget,
             "response_budget": self.response_budget,
+            "citation_enabled": self.citation_enabled,
+            "extractor_mode": self.extractor_mode,
             "prompt_tokens": self._last_selection.prompt_tokens,
             "total_messages": stats["total_messages"],
             "total_chunks": stats["total_chunks"],
             "total_tokens": stats["total_tokens"],
             "protected_message_count": len(protected_messages),
             "cited_message_count": len(cited_messages),
+            "protected_message_indexes": protected_indexes,
+            "cited_message_indexes": cited_indexes,
             "selected_messages": [
                 self._message_snapshot(index, messages[index])
                 for index in self._last_selection.selected_indexes
@@ -160,6 +182,47 @@ class ContextGCBarrier:
 
         return "\n".join(lines)
 
+    def _begin_turn(self, model: str, messages: List[Dict]) -> MessageSelection:
+        self._turn += 1
+        self._last_model = model
+        self._register_new_messages(model=model, messages=messages)
+        self._update_task_keywords(messages)
+        score_all_chunks(
+            chunks=self.registry.all(),
+            current_turn=self._turn,
+            task_keywords=self._task_keywords,
+        )
+        return self._select_messages(model=model, messages=messages)
+
+    def _finish_turn(
+        self,
+        *,
+        messages: List[Dict],
+        selection: MessageSelection,
+        selected_messages: List[Dict[str, Any]],
+        response: Any,
+        response_text: str,
+    ) -> Any:
+        barrier_result = self.barrier.process(
+            response_text=response_text,
+            turn=self._turn,
+            task_keywords=self._task_keywords,
+        )
+        score_all_chunks(
+            chunks=self.registry.all(),
+            current_turn=self._turn,
+            task_keywords=self._task_keywords,
+        )
+
+        self._last_messages = list(messages)
+        self._last_selection = selection
+        response._cgc_barrier_result = barrier_result
+        response._cgc_context_state = self.context_state()
+        response._cgc_selected_messages = selected_messages
+        response._cgc_prompt_tokens = selection.prompt_tokens
+        response._cgc_strategy = self.strategy
+        return response
+
     def _register_new_messages(self, model: str, messages: List[Dict]) -> None:
         new_messages = messages[self._registered_message_count :]
         for index, message in enumerate(new_messages, start=self._registered_message_count):
@@ -188,6 +251,7 @@ class ContextGCBarrier:
                 content=content,
                 turn=self._turn,
                 message_tokens=token_count,
+                extractor_mode=self.extractor_mode,
             )
             self.registry.register_message(context_message, chunks)
 
@@ -199,12 +263,12 @@ class ContextGCBarrier:
                 content = message["content"]
                 if self._looks_like_bulk_payload(content):
                     continue
-                self._task_keywords = extract(content).all_keywords
+                self._task_keywords = extract(content, mode=self.extractor_mode).all_keywords
                 if self._task_keywords:
                     return
         for message in reversed(messages):
             if message.get("role") == "user" and isinstance(message.get("content"), str):
-                self._task_keywords = extract(message["content"]).all_keywords
+                self._task_keywords = extract(message["content"], mode=self.extractor_mode).all_keywords
                 return
         self._task_keywords = set()
 

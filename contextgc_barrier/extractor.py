@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from typing import Set
+import re
+from typing import Literal, Set
 
 _NLP = None
 _NLP_ATTEMPTED = False
+ExtractorMode = Literal["spacy", "lexical"]
 
 
 # Domain-specific patterns for code context
@@ -16,6 +18,12 @@ CODE_PATTERNS = [
     r"line\s+\d+",
     r"\bRSS\b|\bRAM\b|\bCPU\b|\bOOM\b",
 ]
+
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have",
+    "if", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the", "their",
+    "then", "there", "these", "this", "to", "was", "were", "when", "with",
+}
 
 
 @dataclass
@@ -46,8 +54,11 @@ def _get_nlp():
     return _NLP
 
 
-def extract(text: str) -> ExtractionResult:
-    nlp = _get_nlp()
+def extract(text: str, mode: ExtractorMode = "spacy") -> ExtractionResult:
+    if mode not in {"spacy", "lexical"}:
+        raise ValueError("mode must be 'spacy' or 'lexical'")
+
+    nlp = _get_nlp() if mode == "spacy" else None
     named_entities = set()
     noun_phrases = set()
 
@@ -63,11 +74,16 @@ def extract(text: str) -> ExtractionResult:
             if len(chunk.text.split()) >= 2
         } if doc.has_annotation("DEP") else set()
 
-    import re
     code_entities = set()
     for pattern in CODE_PATTERNS:
         matches = re.findall(pattern, text, re.IGNORECASE)
         code_entities.update(m.lower() for m in matches)
+
+    lexical_phrases = _lexical_phrases(text)
+    if mode == "lexical":
+        noun_phrases = lexical_phrases
+    elif not named_entities and not noun_phrases:
+        noun_phrases = lexical_phrases
 
     all_keywords = named_entities | code_entities | noun_phrases
 
@@ -87,15 +103,13 @@ def overlap_score(keywords_a: Set[str], keywords_b: Set[str]) -> float:
     if not keywords_a or not keywords_b:
         return 0.0
 
-    import re
-
     def is_code_entity(k: str) -> bool:
         for pattern in CODE_PATTERNS:
             if re.search(pattern, k, re.IGNORECASE):
                 return True
         return False
 
-    def normalize(k):
+    def normalize(k: str) -> str:
         # strip determiners
         k = re.sub(r'^(a|an|the|this|that)\s+', '', k)
         # strip parens
@@ -118,3 +132,18 @@ def overlap_score(keywords_a: Set[str], keywords_b: Set[str]) -> float:
 
     # Scale result to maximum of 1.0
     return min(match_weight / total_min_weight, 1.0)
+
+
+def _lexical_phrases(text: str) -> Set[str]:
+    tokens = [
+        token
+        for token in re.findall(r"[a-zA-Z0-9_./:-]+", text.lower())
+        if len(token) > 2 and token not in STOPWORDS
+    ]
+    phrases = set(tokens)
+    for size in (2, 3):
+        for index in range(len(tokens) - size + 1):
+            phrase = " ".join(tokens[index:index + size])
+            if phrase:
+                phrases.add(phrase)
+    return phrases

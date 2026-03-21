@@ -1,6 +1,6 @@
 import uuid
 from typing import List
-from .extractor import extract
+from .extractor import ExtractorMode, extract
 from .registry import ContextChunk
 
 
@@ -15,6 +15,7 @@ def chunk_message(
     content: str,
     turn: int,
     message_tokens: int,
+    extractor_mode: ExtractorMode = "spacy",
 ) -> List[ContextChunk]:
     chunks: List[ContextChunk] = []
 
@@ -23,7 +24,7 @@ def chunk_message(
         for i, segment in enumerate(segments):
             if not segment.strip():
                 continue
-            extraction = extract(segment)
+            extraction = extract(segment, mode=extractor_mode)
             chunks.append(
                 ContextChunk(
                     id=f"{uuid.uuid4().hex[:8]}_t{turn}_s{i}",
@@ -38,7 +39,7 @@ def chunk_message(
                 )
             )
     else:
-        extraction = extract(content)
+        extraction = extract(content, mode=extractor_mode)
         chunks.append(
             ContextChunk(
                 id=f"{uuid.uuid4().hex[:8]}_t{turn}",
