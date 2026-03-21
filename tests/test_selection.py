@@ -43,27 +43,32 @@ def run_session(strategy: str, window_budget: int):
     return cgc
 
 
-def test_barrier_strategy_keeps_old_cited_message_under_budget():
+def test_barrier_and_hybrid_keep_old_cited_message_under_budget():
+    summary = run_session(strategy="summary80", window_budget=180)
     barrier = run_session(strategy="barrier", window_budget=180)
-    recency = run_session(strategy="recency", window_budget=180)
+    hybrid = run_session(strategy="summary80_barrier", window_budget=180)
 
+    summary_selected = {item["index"] for item in summary.context_state()["selected_messages"]}
     barrier_selected = {item["index"] for item in barrier.context_state()["selected_messages"]}
-    recency_selected = {item["index"] for item in recency.context_state()["selected_messages"]}
+    hybrid_selected = {item["index"] for item in hybrid.context_state()["selected_messages"]}
 
+    assert 1 not in summary_selected
     assert 1 in barrier_selected
-    assert 1 not in recency_selected
+    assert 1 in hybrid_selected
+    assert 1 in hybrid.context_state()["protected_exception_indexes"]
 
 
-def test_exact_token_budget_is_respected():
-    cgc = run_session(strategy="recency", window_budget=180)
+def test_summary_strategy_respects_budget_and_reports_summary_metadata():
+    cgc = run_session(strategy="summary80", window_budget=180)
     state = cgc.context_state()
+
+    assert state["summary_active"]
+    assert state["summary_tokens"] > 0
     assert state["prompt_tokens"] + cgc.response_budget <= cgc.window_budget
 
 
-def test_ample_budget_keeps_full_transcript_for_both_strategies():
-    barrier = run_session(strategy="barrier", window_budget=5000)
-    recency = run_session(strategy="recency", window_budget=5000)
-
+def test_ample_budget_keeps_full_transcript_for_all_strategies():
     total_messages = 1 + len(build_turns()) + (len(build_turns()) - 1)
-    assert len(barrier.context_state()["selected_messages"]) == total_messages
-    assert len(recency.context_state()["selected_messages"]) == total_messages
+    for strategy in ("summary80", "barrier", "summary80_barrier"):
+        cgc = run_session(strategy=strategy, window_budget=5000)
+        assert len(cgc.context_state()["selected_messages"]) == total_messages

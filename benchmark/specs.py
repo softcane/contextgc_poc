@@ -524,8 +524,6 @@ class StrategySpec:
     extractor_mode: str = "spacy"
 
     def is_applicable(self, model: ModelSpec, window_budget: int) -> bool:
-        if self.name in {"score_only", "barrier_lexical"}:
-            return model.is_primary_local
         return True
 
 
@@ -565,10 +563,6 @@ class RunResult:
     final_prompt_anchor_overlap: float = 0.0
     final_prompt_distractor_overlap: float = 0.0
     blind_id: Optional[str] = None
-    barrier_extra_selected: bool = False
-    barrier_extra_selected_indexes: list[int] = field(default_factory=list)
-    barrier_rescue: bool = False
-    barrier_rescue_facts: list[str] = field(default_factory=list)
     audit_required: bool = False
 
     def key(self) -> tuple[str, str, str, int, int]:
@@ -610,10 +604,6 @@ class RunResult:
             "final_prompt_anchor_overlap": self.final_prompt_anchor_overlap,
             "final_prompt_distractor_overlap": self.final_prompt_distractor_overlap,
             "blind_id": self.blind_id,
-            "barrier_extra_selected": self.barrier_extra_selected,
-            "barrier_extra_selected_indexes": self.barrier_extra_selected_indexes,
-            "barrier_rescue": self.barrier_rescue,
-            "barrier_rescue_facts": self.barrier_rescue_facts,
             "audit_required": self.audit_required,
         }
 
@@ -635,8 +625,7 @@ class AggregateResult:
     anchor_protected_rate: float
     contamination_rate: float
     scorer_agreement_rate: float
-    barrier_rescue_rate: float
-    delta_vs_barrier: float
+    delta_vs_summary80: float
     ci_low: float
     ci_high: float
     p_value: float
@@ -655,7 +644,7 @@ class AggregateResult:
         strategy: str,
         window_budget: int,
         runs: list[RunResult],
-        delta_vs_barrier: float,
+        delta_vs_summary80: float,
         ci_low: float,
         ci_high: float,
         p_value: float,
@@ -680,8 +669,7 @@ class AggregateResult:
             anchor_protected_rate=(sum(1 for run in runs if run.anchor_protected) / len(runs)) if runs else 0.0,
             contamination_rate=(sum(1 for run in runs if run.contamination_count > 0) / len(runs)) if runs else 0.0,
             scorer_agreement_rate=(sum(1 for run in runs if run.scorer_agreement) / len(runs)) if runs else 0.0,
-            barrier_rescue_rate=(sum(1 for run in runs if run.barrier_rescue) / len(runs)) if runs else 0.0,
-            delta_vs_barrier=delta_vs_barrier,
+            delta_vs_summary80=delta_vs_summary80,
             ci_low=ci_low,
             ci_high=ci_high,
             p_value=p_value,
@@ -707,8 +695,7 @@ class AggregateResult:
             "anchor_protected_rate": self.anchor_protected_rate,
             "contamination_rate": self.contamination_rate,
             "scorer_agreement_rate": self.scorer_agreement_rate,
-            "barrier_rescue_rate": self.barrier_rescue_rate,
-            "delta_vs_barrier": self.delta_vs_barrier,
+            "delta_vs_summary80": self.delta_vs_summary80,
             "ci_low": self.ci_low,
             "ci_high": self.ci_high,
             "p_value": self.p_value,

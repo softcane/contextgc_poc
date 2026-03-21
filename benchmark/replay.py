@@ -2,72 +2,32 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import replace
 from pathlib import Path
 from statistics import mean, pstdev
 from typing import Any, Iterable
 
-from .runner import build_default_model_specs
-from .specs import FactSpec, FrozenReplayTask, ModelSpec, RunResult, StrategySpec, choose_audit_sample
+from .runner import build_default_model_specs, build_default_strategy_specs
+from .specs import FactSpec, FrozenReplayTask, ModelSpec, RunResult, build_phrase_pattern, choose_audit_sample
 from .stats import exact_sign_test_p_value, paired_bootstrap_ci, win_tie_loss
-from .strategies import (
-    INTERMEDIATE_MAX_TOKENS,
-    run_full_history_replay_strategy,
-    run_internal_replay_strategy,
-    run_summary80_replay_strategy,
-)
+from .strategies import run_internal_replay_strategy
 from .tasks import (
     DEBUGGING_REPLAY_TARGET_TOKENS,
     DEBUGGING_REPLAY_TOKEN_TOLERANCE,
     build_debugging_replay_seed_task,
 )
 
-DEBUGGING_REPLAY_PROFILE = "debugging_replay_v1"
+DEBUGGING_REPLAY_PROFILE = "debugging_replay"
 DEBUGGING_REPLAY_SMOKE_PROFILE = "debugging_replay_smoke"
-DEBUGGING_REPLAY_TASK_NAME = "debugging_replay_v1"
+DEBUGGING_REPLAY_TASK_NAME = "debugging_replay"
 DEBUGGING_REPLAY_TEMPLATES = ("incident_closeout", "root_cause_recap")
-DEBUGGING_REPLAY_WINDOWS = (3072, 4096)
-DEBUGGING_REPLAY_ORACLE_WINDOW = 16_384
+DEBUGGING_REPLAY_WINDOWS = (3072, 4096, 16_384)
 DEBUGGING_REPLAY_SMOKE_WINDOWS = (3072,)
 DEBUGGING_REPLAY_SMOKE_ACCEPTED_PER_TEMPLATE = 1
 DEBUGGING_REPLAY_SMOKE_TARGET_TOKENS = DEBUGGING_REPLAY_TARGET_TOKENS
 DEBUGGING_REPLAY_SMOKE_TOKEN_TOLERANCE = 500
-DEBUGGING_REPLAY_SMOKE_MAX_SOURCE_SEED = 20
 FROZEN_TRANSCRIPT_CALIBRATION_ATTEMPTS = 4
 
-
-def build_debugging_replay_strategy_specs() -> list[StrategySpec]:
-    return [
-        StrategySpec(
-            name="recency",
-            label="Recency",
-            internal_strategy="recency",
-            citation_enabled=False,
-        ),
-        StrategySpec(
-            name="summary80",
-            label="Summary @80%",
-        ),
-        StrategySpec(
-            name="score_only",
-            label="Score Only",
-            internal_strategy="barrier",
-            citation_enabled=False,
-        ),
-        StrategySpec(
-            name="barrier",
-            label="Barrier",
-            internal_strategy="barrier",
-        ),
-        StrategySpec(
-            name="full_history",
-            label="Full History",
-            citation_enabled=False,
-        ),
-    ]
-
-
-def run_debugging_replay_v1(
+def run_debugging_replay(
     *,
     output_dir: Path,
     primary_local_model: str,
@@ -75,9 +35,7 @@ def run_debugging_replay_v1(
     accepted_per_template: int = 10,
     target_total_tokens: int = DEBUGGING_REPLAY_TARGET_TOKENS,
     target_token_tolerance: int = DEBUGGING_REPLAY_TOKEN_TOLERANCE,
-    constrained_window_budgets: tuple[int, ...] = DEBUGGING_REPLAY_WINDOWS,
-    oracle_window: int = DEBUGGING_REPLAY_ORACLE_WINDOW,
-    max_source_seed: int = 500,
+    window_budgets: tuple[int, ...] = DEBUGGING_REPLAY_WINDOWS,
     profile_name: str = DEBUGGING_REPLAY_PROFILE,
     model_specs: list[ModelSpec] | None = None,
 ) -> dict[str, Any]:
@@ -88,27 +46,22 @@ def run_debugging_replay_v1(
     transcripts_path.unlink(missing_ok=True)
     model_spec = (model_specs or build_default_model_specs(primary_local_model=primary_local_model))[0]
     backend = model_spec.backend_factory()
-    strategies = {strategy.name: strategy for strategy in build_debugging_replay_strategy_specs()}
+    strategies = {strategy.name: strategy for strategy in build_default_strategy_specs()}
     _log_progress(
         progress_log_path,
         (
             f"[start] profile={profile_name} model={model_spec.model_name} response_budget={response_budget} "
             f"accepted_per_template={accepted_per_template} target_total_tokens={target_total_tokens} "
-            f"target_token_tolerance={target_token_tolerance} constrained_windows={','.join(str(item) for item in constrained_window_budgets)} "
-            f"oracle_window={oracle_window} max_source_seed={max_source_seed}"
+            f"target_token_tolerance={target_token_tolerance} windows={','.join(str(item) for item in window_budgets)}"
         ),
     )
 
-    transcripts = generate_frozen_debugging_replay_corpus(
+    transcripts = generate_scripted_debugging_replay_corpus(
         backend=backend,
         model=model_spec,
-        response_budget=response_budget,
         accepted_per_template=accepted_per_template,
         target_total_tokens=target_total_tokens,
         target_token_tolerance=target_token_tolerance,
-        oracle_window=oracle_window,
-        full_history_strategy=strategies["full_history"],
-        max_source_seed=max_source_seed,
         transcripts_path=transcripts_path,
         progress_log_path=progress_log_path,
     )
@@ -117,13 +70,13 @@ def run_debugging_replay_v1(
     results: list[RunResult] = []
     for transcript in transcripts:
         transcript_id = str(transcript.metadata.get("transcript_id", "unknown"))
-        for window_budget in constrained_window_budgets:
-            for strategy_name in ("recency", "summary80", "score_only", "barrier"):
+        for window_budget in window_budgets:
+            for strategy_name in ("summary80", "barrier", "summary80_barrier"):
                 _log_progress(
                     progress_log_path,
                     f"[eval] transcript={transcript_id} window={window_budget} strategy={strategy_name} status=running",
                 )
-                result = _run_replay_strategy(
+                result = run_internal_replay_strategy(
                     backend=backend,
                     task=transcript,
                     model=model_spec,
@@ -139,26 +92,6 @@ def run_debugging_replay_v1(
                         f"status=completed score={result.score:.3f} prompt_tokens={result.prompt_tokens}"
                     ),
                 )
-        _log_progress(
-            progress_log_path,
-            f"[eval] transcript={transcript_id} window={oracle_window} strategy=full_history status=running",
-        )
-        oracle_result = _run_replay_strategy(
-            backend=backend,
-            task=transcript,
-            model=model_spec,
-            strategy=strategies["full_history"],
-            window_budget=oracle_window,
-            response_budget=response_budget,
-        )
-        results.append(oracle_result)
-        _log_progress(
-            progress_log_path,
-            (
-                f"[eval] transcript={transcript_id} window={oracle_window} strategy=full_history "
-                f"status=completed score={oracle_result.score:.3f} prompt_tokens={oracle_result.prompt_tokens}"
-            ),
-        )
 
     finalized = _finalize_results(results)
     aggregate_records = aggregate_debugging_replay_results(finalized)
@@ -168,8 +101,7 @@ def run_debugging_replay_v1(
         aggregate_records=aggregate_records,
         response_budget=response_budget,
         transcript_count=len(transcripts),
-        constrained_window_budgets=constrained_window_budgets,
-        oracle_window=oracle_window,
+        window_budgets=window_budgets,
         profile_name=profile_name,
     )
     _log_progress(
@@ -191,36 +123,29 @@ def run_debugging_replay_smoke(
     response_budget: int = 128,
     target_total_tokens: int = DEBUGGING_REPLAY_SMOKE_TARGET_TOKENS,
     target_token_tolerance: int = DEBUGGING_REPLAY_SMOKE_TOKEN_TOLERANCE,
-    max_source_seed: int = DEBUGGING_REPLAY_SMOKE_MAX_SOURCE_SEED,
-    constrained_window_budgets: tuple[int, ...] = DEBUGGING_REPLAY_SMOKE_WINDOWS,
+    window_budgets: tuple[int, ...] = DEBUGGING_REPLAY_SMOKE_WINDOWS,
     model_specs: list[ModelSpec] | None = None,
 ) -> dict[str, Any]:
-    return run_debugging_replay_v1(
+    return run_debugging_replay(
         output_dir=output_dir,
         primary_local_model=primary_local_model,
         response_budget=response_budget,
         accepted_per_template=DEBUGGING_REPLAY_SMOKE_ACCEPTED_PER_TEMPLATE,
         target_total_tokens=target_total_tokens,
         target_token_tolerance=target_token_tolerance,
-        constrained_window_budgets=constrained_window_budgets,
-        oracle_window=DEBUGGING_REPLAY_ORACLE_WINDOW,
-        max_source_seed=max_source_seed,
+        window_budgets=window_budgets,
         profile_name=DEBUGGING_REPLAY_SMOKE_PROFILE,
         model_specs=model_specs,
     )
 
 
-def generate_frozen_debugging_replay_corpus(
+def generate_scripted_debugging_replay_corpus(
     *,
     backend,
     model: ModelSpec,
-    response_budget: int,
     accepted_per_template: int,
     target_total_tokens: int,
     target_token_tolerance: int,
-    oracle_window: int,
-    full_history_strategy: StrategySpec,
-    max_source_seed: int = 500,
     transcripts_path: Path | None = None,
     progress_log_path: Path | None = None,
 ) -> list[FrozenReplayTask]:
@@ -231,75 +156,24 @@ def generate_frozen_debugging_replay_corpus(
             progress_log_path,
             (
                 f"[corpus] template={template_name} status=starting accepted_target={accepted_per_template} "
-                f"target_total_tokens={target_total_tokens} oracle_window={oracle_window}"
+                f"target_total_tokens={target_total_tokens}"
             ),
         )
-        accepted = 0
-        source_seed = 1
-        while accepted < accepted_per_template:
-            if source_seed > max_source_seed:
-                raise RuntimeError(
-                    "Unable to build enough oracle-valid replay transcripts for "
-                    f"template '{template_name}' within source seeds 1..{max_source_seed}. "
-                    f"Accepted {accepted} of {accepted_per_template}."
-                )
+        for source_seed in range(1, accepted_per_template + 1):
             _log_progress(
                 progress_log_path,
                 f"[corpus] template={template_name} source_seed={source_seed} status=materializing",
             )
-            frozen, prompt_tokens, calibrated_target_total_tokens, calibration_attempts = _build_calibrated_frozen_transcript(
+            frozen, prompt_tokens, calibrated_target_total_tokens, calibration_attempts = _build_calibrated_scripted_transcript(
                 backend=backend,
                 model_name=model.model_name,
                 source_seed=source_seed,
                 template_name=template_name,
                 target_total_tokens=target_total_tokens,
-                response_budget=response_budget,
-                eval_seed=eval_seed,
                 target_token_tolerance=target_token_tolerance,
+                eval_seed=eval_seed,
             )
-            if abs(prompt_tokens - target_total_tokens) > target_token_tolerance:
-                _log_progress(
-                    progress_log_path,
-                    (
-                        f"[corpus] template={template_name} source_seed={source_seed} status=rejected "
-                        f"reason=token_drift prompt_tokens={prompt_tokens} target_total_tokens={target_total_tokens} "
-                        f"calibrated_source_target={calibrated_target_total_tokens} calibration_attempts={calibration_attempts}"
-                    ),
-                )
-                source_seed += 1
-                continue
-            oracle_result = run_full_history_replay_strategy(
-                backend=backend,
-                task=frozen,
-                model=model,
-                strategy=full_history_strategy,
-                window_budget=oracle_window,
-                response_budget=response_budget,
-            )
-            if oracle_result.prompt_tokens + response_budget > oracle_window:
-                _log_progress(
-                    progress_log_path,
-                    (
-                        f"[corpus] template={template_name} source_seed={source_seed} status=rejected "
-                        f"reason=oracle_window_overflow prompt_tokens={oracle_result.prompt_tokens} "
-                        f"window_budget={oracle_window}"
-                    ),
-                )
-                source_seed += 1
-                continue
-            if not _passes_oracle_gate(oracle_result):
-                _log_progress(
-                    progress_log_path,
-                    (
-                        f"[corpus] template={template_name} source_seed={source_seed} status=rejected "
-                        f"reason=oracle_gate score={oracle_result.score:.3f} "
-                        f"wrong={','.join(oracle_result.wrong) or '-'} missing={','.join(oracle_result.missing) or '-'} "
-                        f"contamination={oracle_result.contamination_count}"
-                    ),
-                )
-                source_seed += 1
-                continue
-            transcript_id = f"{template_name}-{accepted + 1:02d}"
+            transcript_id = f"{template_name}-{source_seed:02d}"
             metadata = dict(frozen.metadata)
             metadata.update(
                 {
@@ -309,13 +183,17 @@ def generate_frozen_debugging_replay_corpus(
                     "transcript_prompt_tokens": prompt_tokens,
                     "calibrated_source_target_tokens": calibrated_target_total_tokens,
                     "calibration_attempts": calibration_attempts,
-                    "oracle_score": oracle_result.score,
-                    "oracle_found": oracle_result.found,
-                    "oracle_missing": oracle_result.missing,
-                    "oracle_contamination_count": oracle_result.contamination_count,
+                    "scripted_replay": True,
                 }
             )
-            accepted_transcript = replace(frozen, metadata=metadata)
+            accepted_transcript = FrozenReplayTask(
+                name=frozen.name,
+                system_prompt=frozen.system_prompt,
+                messages=frozen.messages,
+                final_user_index=frozen.final_user_index,
+                facts=frozen.facts,
+                metadata=metadata,
+            )
             transcripts.append(accepted_transcript)
             if transcripts_path is not None:
                 _append_transcript(transcripts_path, accepted_transcript)
@@ -323,21 +201,19 @@ def generate_frozen_debugging_replay_corpus(
                 progress_log_path,
                 (
                     f"[corpus] template={template_name} source_seed={source_seed} status=accepted "
-                    f"transcript_id={transcript_id} prompt_tokens={prompt_tokens} oracle_score={oracle_result.score:.3f} "
+                    f"transcript_id={transcript_id} prompt_tokens={prompt_tokens} "
                     f"calibrated_source_target={calibrated_target_total_tokens} calibration_attempts={calibration_attempts}"
                 ),
             )
-            accepted += 1
             eval_seed += 1
-            source_seed += 1
         _log_progress(
             progress_log_path,
-            f"[corpus] template={template_name} status=completed accepted={accepted}",
+            f"[corpus] template={template_name} status=completed accepted={accepted_per_template}",
         )
     return transcripts
 
 
-def _build_calibrated_frozen_transcript(
+def _build_calibrated_scripted_transcript(
     *,
     backend,
     model_name: str,
@@ -345,7 +221,6 @@ def _build_calibrated_frozen_transcript(
     template_name: str,
     target_total_tokens: int,
     target_token_tolerance: int,
-    response_budget: int,
     eval_seed: int,
 ) -> tuple[FrozenReplayTask, int, int, int]:
     calibrated_target_total_tokens = target_total_tokens
@@ -362,12 +237,9 @@ def _build_calibrated_frozen_transcript(
             template_name=template_name,
             target_total_tokens=calibrated_target_total_tokens,
         )
-        frozen = _freeze_task_transcript(
-            backend=backend,
-            model_name=model_name,
+        frozen = _freeze_scripted_task_transcript(
             candidate=candidate,
             template_name=template_name,
-            response_budget=response_budget,
             eval_seed=eval_seed,
             source_seed=source_seed,
         )
@@ -386,38 +258,32 @@ def _build_calibrated_frozen_transcript(
         )
 
     if last_frozen is None:
-        raise RuntimeError("Failed to build a frozen replay transcript")
+        raise RuntimeError("Failed to build a scripted replay transcript")
     return last_frozen, last_prompt_tokens, last_attempt_target_total_tokens, FROZEN_TRANSCRIPT_CALIBRATION_ATTEMPTS
 
 
-def _freeze_task_transcript(
+def _freeze_scripted_task_transcript(
     *,
-    backend,
-    model_name: str,
     candidate,
     template_name: str,
-    response_budget: int,
     eval_seed: int,
     source_seed: int,
 ) -> FrozenReplayTask:
     messages: list[dict[str, str]] = []
-    prompt_messages = [{"role": "system", "content": candidate.system_prompt}]
     for index, turn in enumerate(candidate.turns):
         message = {"role": turn["role"], "content": turn["content"]}
         messages.append(message)
-        prompt_messages.append(message)
         if index == len(candidate.turns) - 1:
             break
-        response = backend.create(
-            model=model_name,
-            messages=prompt_messages,
-            max_tokens=min(response_budget, INTERMEDIATE_MAX_TOKENS),
-            temperature=0.0,
-        )
-        assistant_text = response.choices[0].message.content or ""
-        assistant_message = {"role": "assistant", "content": assistant_text}
+        assistant_message = {
+            "role": "assistant",
+            "content": _scripted_debugging_assistant_reply(
+                template_name=template_name,
+                turn_index=index,
+            ),
+        }
+        _ensure_reply_has_no_fact_aliases(assistant_message["content"], candidate.facts)
         messages.append(assistant_message)
-        prompt_messages.append(assistant_message)
 
     metadata = dict(candidate.metadata)
     metadata.update(
@@ -438,49 +304,61 @@ def _freeze_task_transcript(
     )
 
 
-def _passes_oracle_gate(result: RunResult) -> bool:
-    if result.score < (6 / 7):
-        return False
-    required = {"root_cause", "file_line", "remediation"}
-    statuses = {fact["name"]: fact["status"] for fact in result.fact_results}
-    return all(statuses.get(name) == "correct" for name in required)
-
-
-def _run_replay_strategy(
+def _scripted_debugging_assistant_reply(
     *,
-    backend,
-    task: FrozenReplayTask,
-    model: ModelSpec,
-    strategy: StrategySpec,
-    window_budget: int,
-    response_budget: int,
-) -> RunResult:
-    if strategy.name == "summary80":
-        return run_summary80_replay_strategy(
-            backend=backend,
-            task=task,
-            model=model,
-            strategy=strategy,
-            window_budget=window_budget,
-            response_budget=response_budget,
+    template_name: str,
+    turn_index: int,
+) -> str:
+    if template_name == "root_cause_recap":
+        replies = {
+            0: "I have the active incident from the first escalation pinned as the live case.",
+            1: "The diagnosis board and patch note from earlier are still the source of truth.",
+            2: "Acknowledged. I will preserve the exact shipped cleanup step from the earlier note.",
+            3: "Short recap: the earlier diagnosis and patch note still apply.",
+            4: "The telemetry is noisy, but it does not replace the first incident record.",
+            5: "I will keep the earlier diagnosis and cleanup step together in the handoff.",
+            6: "Acknowledged. I will ignore the stale rollback notes.",
+            7: "The live incident still comes from the same earlier diagnosis, code change, and shipped cleanup step.",
+            8: "The memory graph adds noise, not a new live explanation.",
+            9: "Understood. The archived remediation chatter is stale and should be ignored.",
+            10: "I am still writing from the original live notes, not the stale case.",
+            11: "The profiling dump supports the same earlier code change.",
+        }
+        return replies.get(
+            turn_index,
+            "The live incident still follows the first diagnosis note.",
         )
-    if strategy.name == "full_history":
-        return run_full_history_replay_strategy(
-            backend=backend,
-            task=task,
-            model=model,
-            strategy=strategy,
-            window_budget=window_budget,
-            response_budget=response_budget,
-        )
-    return run_internal_replay_strategy(
-        backend=backend,
-        task=task,
-        model=model,
-        strategy=strategy,
-        window_budget=window_budget,
-        response_budget=response_budget,
+
+    replies = {
+        0: "I have the live incident from the opening handoff pinned as the active case.",
+        1: "The trace note and working diagnosis from earlier are still the source of truth.",
+        2: "Acknowledged. I will keep the shipped corrective step from the first notes.",
+        3: "The first handoff still defines the live routine and threshold.",
+        4: "The retry telemetry is noisy, but it does not replace the original incident report.",
+        5: "I will keep the exact patch note and cleanup step tied to the live incident.",
+        6: "Acknowledged. I will ignore the archived side-case.",
+        7: "In plain English, the earlier live diagnosis still stands.",
+        8: "The profiling dump still lines up with the same production issue from the first report.",
+        9: "The shipped build note and the production blocker are unchanged from the opening report.",
+        10: "Those meeting notes are about the old canary and not the live incident.",
+        11: "The live closeout still comes from the original handoff, not the archived case.",
+    }
+    return replies.get(
+        turn_index,
+        "The active incident still follows the opening handoff.",
     )
+
+
+def _ensure_reply_has_no_fact_aliases(reply_text: str, facts: tuple[FactSpec, ...]) -> None:
+    lowered_reply = reply_text.lower()
+    for fact in facts:
+        for alias in (fact.canonical_value, *fact.allowed_aliases):
+            if not alias:
+                continue
+            if build_phrase_pattern(alias).search(reply_text):
+                raise ValueError(f"Scripted replay reply leaked fact alias: {alias}")
+            if alias.lower() in lowered_reply:
+                raise ValueError(f"Scripted replay reply leaked fact alias: {alias}")
 
 
 def aggregate_debugging_replay_results(results: list[RunResult]) -> list[dict[str, Any]]:
@@ -488,18 +366,12 @@ def aggregate_debugging_replay_results(results: list[RunResult]) -> list[dict[st
     for result in results:
         grouped.setdefault((result.task, result.model, result.window_budget), {}).setdefault(result.strategy, []).append(result)
 
-    oracle_means: dict[tuple[str, str], float] = {}
-    for (task_name, model_alias, window_budget), by_strategy in grouped.items():
-        oracle_runs = by_strategy.get("full_history")
-        if window_budget == DEBUGGING_REPLAY_ORACLE_WINDOW and oracle_runs:
-            oracle_means[(task_name, model_alias)] = mean(run.score for run in oracle_runs)
-
     records: list[dict[str, Any]] = []
     for (task_name, model_alias, window_budget), by_strategy in sorted(grouped.items()):
         summary_runs = {run.seed: run.score for run in by_strategy.get("summary80", [])}
         for strategy_name, runs in sorted(by_strategy.items()):
             ordered_runs = sorted(runs, key=lambda item: item.seed)
-            if strategy_name == "summary80" or window_budget == DEBUGGING_REPLAY_ORACLE_WINDOW:
+            if strategy_name == "summary80":
                 paired = [0.0 for _ in ordered_runs]
             else:
                 paired = [
@@ -509,7 +381,6 @@ def aggregate_debugging_replay_results(results: list[RunResult]) -> list[dict[st
                 ]
             ci_low, ci_high = paired_bootstrap_ci(paired, seed=window_budget + len(ordered_runs))
             wins, ties, losses = win_tie_loss(paired)
-            oracle_gap = oracle_means.get((task_name, model_alias), 0.0) - (mean(run.score for run in ordered_runs) if ordered_runs else 0.0)
             records.append(
                 {
                     "task": task_name,
@@ -530,7 +401,6 @@ def aggregate_debugging_replay_results(results: list[RunResult]) -> list[dict[st
                     "file_line_accuracy": _fact_accuracy(ordered_runs, "file_line"),
                     "remediation_accuracy": _fact_accuracy(ordered_runs, "remediation"),
                     "source_index_3_selected_rate": _rate(ordered_runs, lambda run: 3 in run.selected_indexes),
-                    "oracle_gap": oracle_gap,
                     "delta_vs_summary80": mean(paired) if paired else 0.0,
                     "ci_low": ci_low,
                     "ci_high": ci_high,
@@ -540,6 +410,53 @@ def aggregate_debugging_replay_results(results: list[RunResult]) -> list[dict[st
                     "losses": losses,
                 }
             )
+    return records
+
+
+def _paired_comparison_records(
+    results: list[RunResult],
+    *,
+    left: str,
+    right: str,
+    seed_offset: int = 0,
+) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, int], dict[str, list[RunResult]]] = {}
+    for result in results:
+        grouped.setdefault((result.task, result.model, result.window_budget), {}).setdefault(result.strategy, []).append(result)
+
+    records: list[dict[str, Any]] = []
+    for (task_name, model_alias, window_budget), by_strategy in sorted(grouped.items()):
+        left_runs = sorted(by_strategy.get(left, []), key=lambda item: item.seed)
+        right_runs = sorted(by_strategy.get(right, []), key=lambda item: item.seed)
+        if not left_runs or not right_runs:
+            continue
+        right_scores = {run.seed: run.score for run in right_runs}
+        paired = [run.score - right_scores[run.seed] for run in left_runs if run.seed in right_scores]
+        if not paired:
+            continue
+        ci_low, ci_high = paired_bootstrap_ci(paired, seed=window_budget + seed_offset)
+        wins, ties, losses = win_tie_loss(paired)
+        records.append(
+            {
+                "task": task_name,
+                "model": model_alias,
+                "window_budget": window_budget,
+                "left": left,
+                "right": right,
+                "left_mean": mean(run.score for run in left_runs),
+                "right_mean": mean(run.score for run in right_runs),
+                "delta": mean(paired),
+                "ci_low": ci_low,
+                "ci_high": ci_high,
+                "p_value": exact_sign_test_p_value(paired),
+                "wins": wins,
+                "ties": ties,
+                "losses": losses,
+                "left_anchor_rate": _rate(left_runs, lambda run: run.retained_anchor),
+                "left_contamination_rate": _rate(left_runs, lambda run: run.contamination_count > 0),
+                "left_scorer_agreement_rate": _rate(left_runs, lambda run: run.scorer_agreement),
+            }
+        )
     return records
 
 
@@ -570,41 +487,7 @@ def _finalize_results(results: list[RunResult]) -> list[RunResult]:
     )
     for index, result in enumerate(finalized, start=1):
         result.blind_id = f"audit-{index:04d}"
-        result.barrier_extra_selected = False
-        result.barrier_extra_selected_indexes = []
-        result.barrier_rescue = False
-        result.barrier_rescue_facts = []
         result.audit_required = False
-
-    grouped: dict[tuple[str, str, int, int], dict[str, RunResult]] = {}
-    for result in finalized:
-        grouped.setdefault((result.task, result.model, result.window_budget, result.seed), {})[result.strategy] = result
-    for runs in grouped.values():
-        score_only = runs.get("score_only")
-        barrier = runs.get("barrier")
-        if score_only is None or barrier is None:
-            continue
-        barrier_only_indexes = sorted(set(barrier.selected_indexes) - set(score_only.selected_indexes))
-        barrier.barrier_extra_selected_indexes = barrier_only_indexes
-        barrier.barrier_extra_selected = bool(barrier_only_indexes)
-
-        score_only_facts = {fact["name"]: fact["status"] for fact in score_only.fact_results}
-        rescue_facts: list[str] = []
-        for fact in barrier.fact_results:
-            if fact["status"] != "correct":
-                continue
-            if score_only_facts.get(fact["name"]) == "correct":
-                continue
-            source_indexes = set(fact.get("source_message_indexes", []))
-            if not source_indexes:
-                continue
-            if not (source_indexes & set(barrier.protected_message_indexes)):
-                continue
-            if source_indexes <= set(score_only.selected_indexes):
-                continue
-            rescue_facts.append(fact["name"])
-        barrier.barrier_rescue_facts = sorted(rescue_facts)
-        barrier.barrier_rescue = bool(rescue_facts)
 
     for result in choose_audit_sample(finalized, seed=0):
         result.audit_required = True
@@ -618,8 +501,7 @@ def _write_result_artifacts(
     aggregate_records: list[dict[str, Any]],
     response_budget: int,
     transcript_count: int,
-    constrained_window_budgets: tuple[int, ...],
-    oracle_window: int,
+    window_budgets: tuple[int, ...],
     profile_name: str,
 ) -> None:
     run_path = output_dir / "runs.jsonl"
@@ -650,15 +532,14 @@ def _write_result_artifacts(
         f"- Profile: `{profile_name}`",
         f"- Runs: `{len(results)}`",
         f"- Transcripts: `{transcript_count}`",
-        f"- Constrained windows: `{','.join(str(item) for item in constrained_window_budgets)}`",
-        f"- Oracle window: `{oracle_window}`",
+        f"- Windows: `{','.join(str(item) for item in window_budgets)}`",
         f"- Response budget: `{response_budget}`",
         f"- Audit queue size: `{sum(1 for result in results if result.audit_required)}`",
         "",
         "## Aggregate Summary",
         "",
-        "| Window | Strategy | Mean | Secondary | Root Cause | File Line | Remediation | Anchor | SrcIdx3 | Distractor | Contam | Agree | Oracle Gap | Delta vs Summary80 | 95% CI | p-value |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|",
+        "| Window | Strategy | Mean | Secondary | Root Cause | File Line | Remediation | Anchor | SrcIdx3 | Distractor | Contam | Agree | Delta vs Summary80 | 95% CI | p-value |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|",
     ]
     for aggregate in aggregate_records:
         summary_lines.append(
@@ -667,22 +548,35 @@ def _write_result_artifacts(
             f"{aggregate['file_line_accuracy']:.0%} | {aggregate['remediation_accuracy']:.0%} | "
             f"{aggregate['retained_anchor_rate']:.0%} | {aggregate['source_index_3_selected_rate']:.0%} | "
             f"{aggregate['retained_distractor_rate']:.0%} | {aggregate['contamination_rate']:.0%} | "
-            f"{aggregate['scorer_agreement_rate']:.0%} | {aggregate['oracle_gap']:.3f} | "
-            f"{aggregate['delta_vs_summary80']:.3f} | [{aggregate['ci_low']:.3f}, {aggregate['ci_high']:.3f}] | {aggregate['p_value']:.3f} |"
+            f"{aggregate['scorer_agreement_rate']:.0%} | {aggregate['delta_vs_summary80']:.3f} | "
+            f"[{aggregate['ci_low']:.3f}, {aggregate['ci_high']:.3f}] | {aggregate['p_value']:.3f} |"
         )
 
     summary_lines.extend(["", "## Barrier vs Summary80", ""])
-    for window_budget in constrained_window_budgets:
-        barrier = next(
-            aggregate for aggregate in aggregate_records
-            if aggregate["window_budget"] == window_budget and aggregate["strategy"] == "barrier"
-        )
-        summary_lines.append(
-            f"- `{window_budget}`: mean `{barrier['mean_score']:.3f}`, delta vs summary80 `{barrier['delta_vs_summary80']:.3f}`, "
-            f"root-cause accuracy `{barrier['root_cause_accuracy']:.0%}`, contamination `{barrier['contamination_rate']:.0%}`, "
-            f"agreement `{barrier['scorer_agreement_rate']:.0%}`"
-        )
+    summary_lines.extend(_paired_comparison_lines(results, left="barrier", right="summary80", seed_offset=0))
+    summary_lines.extend(["", "## Summary80 + Barrier vs Barrier", ""])
+    summary_lines.extend(_paired_comparison_lines(results, left="summary80_barrier", right="barrier", seed_offset=1_000))
     summary_path.write_text("\n".join(summary_lines))
+
+
+def _paired_comparison_lines(
+    results: list[RunResult],
+    *,
+    left: str,
+    right: str,
+    seed_offset: int,
+) -> list[str]:
+    lines: list[str] = []
+    for comparison in _paired_comparison_records(results, left=left, right=right, seed_offset=seed_offset):
+        lines.append(
+            f"- `{comparison['task']}` @ `{comparison['window_budget']}`: "
+            f"`{left}` mean `{comparison['left_mean']:.3f}` vs `{right}` `{comparison['right_mean']:.3f}` "
+            f"(delta `{comparison['delta']:.3f}`, 95% CI `[{comparison['ci_low']:.3f}, {comparison['ci_high']:.3f}]`, "
+            f"p `{comparison['p_value']:.3f}`, wins/ties/losses `{comparison['wins']}/{comparison['ties']}/{comparison['losses']}`), "
+            f"anchor `{comparison['left_anchor_rate']:.0%}`, contamination `{comparison['left_contamination_rate']:.0%}`, "
+            f"agreement `{comparison['left_scorer_agreement_rate']:.0%}`"
+        )
+    return lines
 
 
 def _write_transcripts(path: Path, transcripts: list[FrozenReplayTask]) -> None:
@@ -744,6 +638,7 @@ def _audit_queue_record(result: RunResult) -> dict[str, Any]:
         "blind_id": result.blind_id,
         "task": result.task,
         "model": result.model,
+        "strategy": result.strategy,
         "window_budget": result.window_budget,
         "seed": result.seed,
         "review_reasons": reasons,

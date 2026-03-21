@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from benchmark.replay import run_debugging_replay_smoke, run_debugging_replay_v1
+from benchmark.replay import run_debugging_replay, run_debugging_replay_smoke
 from benchmark.runner import (
     DEFAULT_PRIMARY_LOCAL_MODEL,
     DEFAULT_WINDOW_BUDGETS,
@@ -29,7 +29,7 @@ def parse_int_csv(value: str | None) -> list[int] | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the ContextGC benchmark matrix.")
-    parser.add_argument("--profile", choices=("matrix", "proof", "debugging_replay_v1", "debugging_replay_smoke"), default="matrix")
+    parser.add_argument("--profile", choices=("matrix", "proof", "debugging_replay", "debugging_replay_smoke"), default="matrix")
     parser.add_argument("--tasks", help="Comma-separated task names.")
     parser.add_argument("--models", help="Comma-separated model aliases.")
     parser.add_argument("--strategies", help="Comma-separated strategy names.")
@@ -50,8 +50,8 @@ def main() -> None:
     strategy_specs = build_default_strategy_specs()
     task_specs = build_task_specs()
 
-    if args.profile in {"debugging_replay_v1", "debugging_replay_smoke"}:
-        replay_runner = run_debugging_replay_smoke if args.profile == "debugging_replay_smoke" else run_debugging_replay_v1
+    if args.profile in {"debugging_replay", "debugging_replay_smoke"}:
+        replay_runner = run_debugging_replay_smoke if args.profile == "debugging_replay_smoke" else run_debugging_replay
         results = replay_runner(
             output_dir=Path(args.output_dir),
             primary_local_model=args.primary_local_model,
@@ -68,7 +68,7 @@ def main() -> None:
     if args.profile == "proof":
         selected_tasks = selected_tasks or ["debugging"]
         selected_models = selected_models or ["qwen_local"]
-        selected_strategies = selected_strategies or ["summary80", "barrier"]
+        selected_strategies = selected_strategies or ["summary80", "barrier", "summary80_barrier"]
         window_budgets = window_budgets or [args.window_budget or 3072]
         seed_count = 1
         max_seed_count = 1
@@ -113,7 +113,8 @@ def _write_proof_compatibility_artifacts(output_dir: Path, results: dict) -> Non
     }
     summary80 = run_lookup.get(("summary80", 1))
     barrier = run_lookup.get(("barrier", 1))
-    if summary80 is None or barrier is None:
+    hybrid = run_lookup.get(("summary80_barrier", 1))
+    if summary80 is None or barrier is None or hybrid is None:
         return
 
     if barrier["score"] > summary80["score"] and barrier["score"] == 1.0:
@@ -151,6 +152,13 @@ def _write_proof_compatibility_artifacts(output_dir: Path, results: dict) -> Non
                 "state": {"prompt_tokens": barrier["prompt_tokens"]},
                 "protected_bug_report_selected": barrier["retained_anchor"],
             },
+            "summary80_barrier": {
+                "strategy": "summary80_barrier",
+                "final_response": hybrid["final_response"],
+                "score": {"score": hybrid["score"], "found": hybrid["found"], "missed": hybrid["missed"]},
+                "state": {"prompt_tokens": hybrid["prompt_tokens"]},
+                "protected_bug_report_selected": hybrid["retained_anchor"],
+            },
         },
     }
 
@@ -171,6 +179,7 @@ def _write_proof_compatibility_artifacts(output_dir: Path, results: dict) -> Non
         "|---|---:|---:|---:|",
         f"| Summary @80% | {summary80['score']:.0%} | {summary80['retained_anchor']} | {summary80['prompt_tokens']} |",
         f"| Barrier | {barrier['score']:.0%} | {barrier['retained_anchor']} | {barrier['prompt_tokens']} |",
+        f"| Summary @80% + Barrier | {hybrid['score']:.0%} | {hybrid['retained_anchor']} | {hybrid['prompt_tokens']} |",
         "",
         "## Summary80 Final Response",
         "",
@@ -179,6 +188,10 @@ def _write_proof_compatibility_artifacts(output_dir: Path, results: dict) -> Non
         "## Barrier Final Response",
         "",
         barrier["final_response"],
+        "",
+        "## Summary80 + Barrier Final Response",
+        "",
+        hybrid["final_response"],
     ]
     md_path.write_text("\n".join(lines))
 

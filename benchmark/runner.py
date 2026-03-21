@@ -18,7 +18,7 @@ from .specs import (
     choose_audit_sample,
 )
 from .stats import exact_sign_test_p_value, paired_bootstrap_ci, win_tie_loss
-from .strategies import run_internal_strategy, run_summary80_strategy
+from .strategies import run_internal_strategy
 
 DEFAULT_PRIMARY_LOCAL_MODEL = "mlx-community/Qwen3.5-4B-OptiQ-4bit"
 DEFAULT_WINDOW_BUDGETS = (3072, 16384)
@@ -46,18 +46,20 @@ def build_default_strategy_specs() -> list[StrategySpec]:
             name="summary80",
             label="Summary @80%",
             include_in_adaptive_gate=True,
-        ),
-        StrategySpec(
-            name="score_only",
-            label="Score Only",
-            include_in_adaptive_gate=True,
-            internal_strategy="barrier",
+            internal_strategy="summary80",
             citation_enabled=False,
         ),
         StrategySpec(
             name="barrier",
             label="Barrier",
+            include_in_adaptive_gate=True,
             internal_strategy="barrier",
+        ),
+        StrategySpec(
+            name="summary80_barrier",
+            label="Summary @80% + Barrier",
+            include_in_adaptive_gate=True,
+            internal_strategy="summary80_barrier",
         ),
     ]
 
@@ -157,18 +159,18 @@ class BenchmarkRunner:
 
         aggregates: list[AggregateResult] = []
         for (task_name, model_alias, window_budget), by_strategy in sorted(grouped.items()):
-            barrier_runs = sorted(by_strategy.get("barrier", []), key=lambda item: item.seed)
-            barrier_scores = {run.seed: run.score for run in barrier_runs}
+            summary_runs = sorted(by_strategy.get("summary80", []), key=lambda item: item.seed)
+            summary_scores = {run.seed: run.score for run in summary_runs}
             model_spec = self.model_specs[model_alias]
             for strategy_name, runs in sorted(by_strategy.items()):
                 ordered_runs = sorted(runs, key=lambda item: item.seed)
-                if strategy_name == "barrier":
+                if strategy_name == "summary80":
                     paired = [0.0 for _ in ordered_runs]
                 else:
                     paired = [
-                        barrier_scores[run.seed] - run.score
+                        run.score - summary_scores[run.seed]
                         for run in ordered_runs
-                        if run.seed in barrier_scores
+                        if run.seed in summary_scores
                     ]
                 ci_low, ci_high = paired_bootstrap_ci(paired, seed=window_budget + len(ordered_runs))
                 wins, ties, losses = win_tie_loss(paired)
@@ -181,7 +183,7 @@ class BenchmarkRunner:
                         strategy=strategy_name,
                         window_budget=window_budget,
                         runs=ordered_runs,
-                        delta_vs_barrier=mean(paired) if paired else 0.0,
+                        delta_vs_summary80=mean(paired) if paired else 0.0,
                         ci_low=ci_low,
                         ci_high=ci_high,
                         p_value=exact_sign_test_p_value(paired),
@@ -247,15 +249,6 @@ class BenchmarkRunner:
         strategy: StrategySpec,
         window_budget: int,
     ) -> RunResult:
-        if strategy.name == "summary80":
-            return run_summary80_strategy(
-                backend=backend,
-                task=task,
-                model=model,
-                strategy=strategy,
-                window_budget=window_budget,
-                response_budget=self.response_budget,
-            )
         return run_internal_strategy(
             backend=backend,
             task=task,
@@ -279,11 +272,6 @@ class BenchmarkRunner:
             grouped[group_key][result.strategy].append(result)
 
         extension_groups: set[tuple[str, str, int]] = set()
-        baseline_candidates = [
-            strategy.name
-            for strategy in selected_strategies.values()
-            if strategy.include_in_adaptive_gate and strategy.name != "barrier"
-        ]
         for task_name in selected_tasks:
             for model_alias in selected_models:
                 for window_budget in window_budgets:
@@ -291,30 +279,28 @@ class BenchmarkRunner:
                     runs_by_strategy = grouped.get(group_key)
                     if not runs_by_strategy:
                         continue
+                    summary_runs = sorted(runs_by_strategy.get("summary80", []), key=lambda item: item.seed)
                     barrier_runs = sorted(runs_by_strategy.get("barrier", []), key=lambda item: item.seed)
-                    if len(barrier_runs) < self.initial_seed_count:
+                    hybrid_runs = sorted(runs_by_strategy.get("summary80_barrier", []), key=lambda item: item.seed)
+                    if len(summary_runs) < self.initial_seed_count:
                         continue
-                    best_name, best_runs = self._best_baseline(runs_by_strategy, baseline_candidates)
-                    if best_name is None or best_runs is None:
-                        continue
-                    barrier_scores = {run.seed: run.score for run in barrier_runs}
-                    paired = [
-                        barrier_scores[run.seed] - run.score
-                        for run in sorted(best_runs, key=lambda item: item.seed)
-                        if run.seed in barrier_scores
-                    ]
-                    if len(paired) < self.initial_seed_count:
-                        continue
-                    delta_mean = mean(paired)
-                    ci_low, ci_high = paired_bootstrap_ci(paired, seed=window_budget)
-                    p_value = exact_sign_test_p_value(paired)
                     scorer_disagreement_rate = self._scorer_disagreement_rate(group_key)
-                    if (
-                        ci_low <= 0.0 <= ci_high
-                        or delta_mean < 0.10
-                        or p_value > 0.05
-                        or scorer_disagreement_rate > 0.05
-                    ) and self.max_completed_seed(group_key) < self.max_seed_count:
+                    needs_extension = False
+                    if len(barrier_runs) >= self.initial_seed_count:
+                        needs_extension = needs_extension or self._pair_is_inconclusive(
+                            left_runs=barrier_runs,
+                            right_runs=summary_runs,
+                            seed=window_budget,
+                            scorer_disagreement_rate=scorer_disagreement_rate,
+                        )
+                    if len(barrier_runs) >= self.initial_seed_count and len(hybrid_runs) >= self.initial_seed_count:
+                        needs_extension = needs_extension or self._pair_is_inconclusive(
+                            left_runs=hybrid_runs,
+                            right_runs=barrier_runs,
+                            seed=window_budget + 1_000,
+                            scorer_disagreement_rate=scorer_disagreement_rate,
+                        )
+                    if needs_extension and self.max_completed_seed(group_key) < self.max_seed_count:
                         extension_groups.add(group_key)
         return extension_groups
 
@@ -326,24 +312,31 @@ class BenchmarkRunner:
         ]
         return max(seeds) if seeds else 0
 
-    def _best_baseline(
+    def _pair_is_inconclusive(
         self,
-        runs_by_strategy: dict[str, list[RunResult]],
-        candidates: list[str],
-    ) -> tuple[Optional[str], Optional[list[RunResult]]]:
-        best_name = None
-        best_runs = None
-        best_score = float("-inf")
-        for candidate in candidates:
-            runs = runs_by_strategy.get(candidate)
-            if not runs:
-                continue
-            candidate_score = mean(run.score for run in runs)
-            if candidate_score > best_score:
-                best_name = candidate
-                best_runs = runs
-                best_score = candidate_score
-        return best_name, best_runs
+        *,
+        left_runs: list[RunResult],
+        right_runs: list[RunResult],
+        seed: int,
+        scorer_disagreement_rate: float,
+    ) -> bool:
+        right_scores = {run.seed: run.score for run in right_runs}
+        paired = [
+            run.score - right_scores[run.seed]
+            for run in sorted(left_runs, key=lambda item: item.seed)
+            if run.seed in right_scores
+        ]
+        if len(paired) < self.initial_seed_count:
+            return True
+        delta_mean = mean(paired)
+        ci_low, ci_high = paired_bootstrap_ci(paired, seed=seed)
+        p_value = exact_sign_test_p_value(paired)
+        return (
+            ci_low <= 0.0 <= ci_high
+            or delta_mean < 0.10
+            or p_value > 0.05
+            or scorer_disagreement_rate > 0.05
+        )
 
     def _scorer_disagreement_rate(self, group_key: tuple[str, str, int]) -> float:
         group_runs = [
@@ -413,10 +406,6 @@ class BenchmarkRunner:
                 final_prompt_anchor_overlap=record.get("final_prompt_anchor_overlap", 0.0),
                 final_prompt_distractor_overlap=record.get("final_prompt_distractor_overlap", 0.0),
                 blind_id=record.get("blind_id"),
-                barrier_extra_selected=record.get("barrier_extra_selected", False),
-                barrier_extra_selected_indexes=record.get("barrier_extra_selected_indexes", []),
-                barrier_rescue=record.get("barrier_rescue", False),
-                barrier_rescue_facts=record.get("barrier_rescue_facts", []),
                 audit_required=record.get("audit_required", False)
                 or (not record.get("scorer_agreement", True))
                 or record.get("contamination_count", 0) > 0,
@@ -447,6 +436,7 @@ class BenchmarkRunner:
             "blind_id": result.blind_id,
             "task": result.task,
             "model": result.model,
+            "strategy": result.strategy,
             "window_budget": result.window_budget,
             "seed": result.seed,
             "review_reasons": reasons,
@@ -466,42 +456,7 @@ class BenchmarkRunner:
 
         for index, result in enumerate(self._results, start=1):
             result.blind_id = f"audit-{index:04d}"
-            result.barrier_extra_selected = False
-            result.barrier_extra_selected_indexes = []
-            result.barrier_rescue = False
-            result.barrier_rescue_facts = []
             result.audit_required = False
-
-        grouped: dict[tuple[str, str, int, int], dict[str, RunResult]] = defaultdict(dict)
-        for result in self._results:
-            grouped[(result.task, result.model, result.window_budget, result.seed)][result.strategy] = result
-
-        for runs in grouped.values():
-            score_only = runs.get("score_only")
-            barrier = runs.get("barrier")
-            if score_only is None or barrier is None:
-                continue
-            barrier_only_indexes = sorted(set(barrier.selected_indexes) - set(score_only.selected_indexes))
-            barrier.barrier_extra_selected_indexes = barrier_only_indexes
-            barrier.barrier_extra_selected = bool(barrier_only_indexes)
-
-            score_only_facts = {fact["name"]: fact["status"] for fact in score_only.fact_results}
-            rescue_facts: list[str] = []
-            for fact in barrier.fact_results:
-                if fact["status"] != "correct":
-                    continue
-                if score_only_facts.get(fact["name"]) == "correct":
-                    continue
-                source_indexes = set(fact.get("source_message_indexes", []))
-                if not source_indexes:
-                    continue
-                if not (source_indexes & set(barrier.protected_message_indexes)):
-                    continue
-                if source_indexes <= set(score_only.selected_indexes):
-                    continue
-                rescue_facts.append(fact["name"])
-            barrier.barrier_rescue_facts = sorted(rescue_facts)
-            barrier.barrier_rescue = bool(rescue_facts)
 
         for result in choose_audit_sample(self._results, seed=0):
             result.audit_required = True
@@ -518,7 +473,6 @@ class BenchmarkRunner:
                 writer.writeheader()
                 writer.writerows(aggregate_records)
 
-        rescue_aggregates = [aggregate for aggregate in aggregates if aggregate.strategy == "barrier"]
         summary_lines = [
             "# ContextGC Benchmark Matrix",
             "",
@@ -530,8 +484,8 @@ class BenchmarkRunner:
             "",
             "## Aggregate Summary",
             "",
-            "| Task | Model | Window | Strategy | Mean | Secondary | Contam | Agree | Anchor | Distractor | Rescue | Delta vs Barrier | 95% CI | p-value |",
-            "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|",
+            "| Task | Model | Window | Strategy | Mean | Secondary | Contam | Agree | Anchor | Distractor | Delta vs Summary80 | 95% CI | p-value |",
+            "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|---:|",
         ]
         for aggregate in aggregates:
             summary_lines.append(
@@ -539,23 +493,69 @@ class BenchmarkRunner:
                 f"{aggregate.mean_score:.3f} | {aggregate.mean_secondary_score:.3f} | "
                 f"{aggregate.contamination_rate:.0%} | {aggregate.scorer_agreement_rate:.0%} | "
                 f"{aggregate.retained_anchor_rate:.0%} | {aggregate.retained_distractor_rate:.0%} | "
-                f"{aggregate.barrier_rescue_rate:.0%} | {aggregate.delta_vs_barrier:.3f} | "
+                f"{aggregate.delta_vs_summary80:.3f} | "
                 f"[{aggregate.ci_low:.3f}, {aggregate.ci_high:.3f}] | {aggregate.p_value:.3f} |"
             )
-        if rescue_aggregates:
-            summary_lines.extend(
-                [
-                    "",
-                    "## Barrier Rescue Summary",
-                    "",
-                ]
-            )
-            for aggregate in rescue_aggregates:
-                summary_lines.append(
-                    f"- `{aggregate.task}` @ `{aggregate.window_budget}`: rescue rate `{aggregate.barrier_rescue_rate:.0%}`, "
-                    f"anchor protected `{aggregate.anchor_protected_rate:.0%}`, scorer agreement `{aggregate.scorer_agreement_rate:.0%}`"
-                )
+        summary_lines.extend(["", "## Barrier vs Summary80", ""])
+        summary_lines.extend(self._paired_comparison_lines(aggregates, left="barrier", right="summary80"))
+        summary_lines.extend(["", "## Summary80 + Barrier vs Barrier", ""])
+        summary_lines.extend(self._paired_comparison_lines(aggregates, left="summary80_barrier", right="barrier"))
         self.summary_path.write_text("\n".join(summary_lines))
+
+    def _paired_comparison_lines(
+        self,
+        aggregates: list[AggregateResult],
+        *,
+        left: str,
+        right: str,
+    ) -> list[str]:
+        aggregate_lookup = {
+            (aggregate.task, aggregate.model, aggregate.window_budget, aggregate.strategy): aggregate
+            for aggregate in aggregates
+        }
+        lines: list[str] = []
+        for aggregate in aggregates:
+            if aggregate.strategy != left:
+                continue
+            right_aggregate = aggregate_lookup.get((aggregate.task, aggregate.model, aggregate.window_budget, right))
+            if right_aggregate is None:
+                continue
+            left_runs = sorted(
+                [
+                    result
+                    for result in self._results
+                    if (
+                        result.task == aggregate.task
+                        and result.model == aggregate.model
+                        and result.window_budget == aggregate.window_budget
+                        and result.strategy == left
+                    )
+                ],
+                key=lambda item: item.seed,
+            )
+            right_scores = {
+                result.seed: result.score
+                for result in self._results
+                if (
+                    result.task == aggregate.task
+                    and result.model == aggregate.model
+                    and result.window_budget == aggregate.window_budget
+                    and result.strategy == right
+                )
+            }
+            paired = [run.score - right_scores[run.seed] for run in left_runs if run.seed in right_scores]
+            ci_low, ci_high = paired_bootstrap_ci(paired, seed=aggregate.window_budget + (1_000 if left == "summary80_barrier" else 0))
+            wins, ties, losses = win_tie_loss(paired)
+            delta = mean(paired) if paired else 0.0
+            p_value = exact_sign_test_p_value(paired)
+            lines.append(
+                f"- `{aggregate.task}` @ `{aggregate.window_budget}`: "
+                f"`{left}` mean `{aggregate.mean_score:.3f}` vs `{right}` `{right_aggregate.mean_score:.3f}` "
+                f"(delta `{delta:.3f}`, 95% CI `[{ci_low:.3f}, {ci_high:.3f}]`, p `{p_value:.3f}`, "
+                f"wins/ties/losses `{wins}/{ties}/{losses}`), anchor `{aggregate.retained_anchor_rate:.0%}`, "
+                f"contamination `{aggregate.contamination_rate:.0%}`, agreement `{aggregate.scorer_agreement_rate:.0%}`"
+            )
+        return lines
 
     def _rewrite_run_records(self) -> None:
         with self.run_jsonl_path.open("w", encoding="utf-8") as handle:

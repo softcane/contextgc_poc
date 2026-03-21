@@ -33,6 +33,11 @@ class DemoBackend:
             "",
         )
 
+        if "compress conversation state" in prompt_text or "working-memory bullets" in prompt_text:
+            found = [response_text for needle, response_text in CRITICAL_DETAILS if needle in prompt_text]
+            bullets = found[:4] or ["earlier debugging context still matters"]
+            return make_response("Rolling summary:\n" + "\n".join(f"- {item}" for item in bullets))
+
         if "before i close this ticket" in last_user:
             found = [response_text for needle, response_text in CRITICAL_DETAILS if needle in prompt_text]
             if not found:
@@ -125,8 +130,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Quick local demo for ContextGCBarrier.")
     parser.add_argument(
         "--strategy",
-        choices=["barrier", "recency", "both"],
-        default="both",
+        choices=["summary80", "barrier", "summary80_barrier"],
+        default="barrier",
         help="Which selection strategy to run.",
     )
     parser.add_argument(
@@ -136,11 +141,6 @@ def main() -> None:
         help="Small prompt budget to force compaction in the demo.",
     )
     args = parser.parse_args()
-
-    if args.strategy == "both":
-        print_run("recency", args.window_budget)
-        print_run("barrier", args.window_budget)
-        return
 
     print_run(args.strategy, args.window_budget)
 

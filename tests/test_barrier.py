@@ -1,3 +1,5 @@
+import pytest
+
 from contextgc_barrier import ContextGCBarrier, WriteBarrier, chunk_message
 from contextgc_barrier.backend import make_response
 from contextgc_barrier.extractor import extract, overlap_score
@@ -150,7 +152,7 @@ def test_anchor_behavior_keeps_system_and_current_user():
         backend=backend,
         window_budget=60,
         response_budget=10,
-        strategy="recency",
+        strategy="summary80",
         sticky_recent_messages=2,
     )
     messages = [
@@ -209,13 +211,14 @@ def test_replay_turn_matches_chat_selection_and_citations():
     assert chat_response._cgc_barrier_result.cited_messages == replay_response._cgc_barrier_result.cited_messages
 
 
-def test_replay_turn_does_not_call_backend_create():
+@pytest.mark.parametrize("strategy", ["summary80", "barrier", "summary80_barrier"])
+def test_replay_turn_does_not_call_backend_create(strategy: str):
     backend = _ReplayBackend("The active issue is process_batch().")
     cgc = ContextGCBarrier(
         backend=backend,
         window_budget=90,
         response_budget=20,
-        strategy="barrier",
+        strategy=strategy,
         extractor_mode="lexical",
     )
     messages = [

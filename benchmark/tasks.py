@@ -1034,7 +1034,7 @@ def _task_metadata(
     distractor_text = " ".join(distractor.values())
     return {
         "seed": seed,
-        "reviewer_version": "v2",
+        "reviewer_version": "debugging_replay",
         "anchor_indexes": [_turn_to_message_index(turn) for turn in anchor_turns],
         "distractor_indexes": [_turn_to_message_index(turn) for turn in distractor_turns],
         "fact_source_indexes": {

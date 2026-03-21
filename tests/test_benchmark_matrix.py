@@ -4,14 +4,12 @@ import pytest
 
 from benchmark.replay import (
     aggregate_debugging_replay_results,
-    build_debugging_replay_strategy_specs,
-    generate_frozen_debugging_replay_corpus,
+    generate_scripted_debugging_replay_corpus,
+    run_debugging_replay,
     run_debugging_replay_smoke,
-    run_debugging_replay_v1,
 )
 from benchmark.runner import BenchmarkRunner, build_default_model_specs, build_default_strategy_specs
-from benchmark.specs import FactSpec, ModelSpec, RunResult, TaskInstance, TaskSpec, normalize_value
-from benchmark.strategies import _ensure_summary_fit
+from benchmark.specs import FactSpec, ModelSpec, RunResult, TaskInstance, TaskSpec, build_phrase_pattern, normalize_value
 from benchmark.tasks import (
     DEBUGGING_VALUES,
     DEBUGGING_REPLAY_TARGET_TOKENS,
@@ -23,6 +21,7 @@ from benchmark.tasks import (
     build_task_specs,
 )
 from contextgc_barrier.backend import make_response
+from contextgc_barrier.summary import ensure_summary_fit
 from tests.fake_backend import FakeBackend
 
 
@@ -86,7 +85,7 @@ def test_task_generation_is_seed_stable_across_builds():
     task_b = task_spec.build(backend=backend, model="fake", window_budget=3072, overflow_ratio=1.15, seed=3)
 
     assert task_a.turns == task_b.turns
-    assert [fact.value for fact in task_a.facts] == [fact.value for fact in task_b.facts]
+    assert [fact.canonical_value for fact in task_a.facts] == [fact.canonical_value for fact in task_b.facts]
 
 
 def test_all_default_tasks_start_with_user_turn_and_pass_leakage_check():
@@ -98,7 +97,7 @@ def test_all_default_tasks_start_with_user_turn_and_pass_leakage_check():
         assert task.metadata["final_prompt_distractor_overlap"] < LEAKAGE_THRESHOLD
 
 
-def test_matrix_runner_writes_hardened_outputs(tmp_path: Path):
+def test_matrix_runner_writes_three_strategy_outputs(tmp_path: Path):
     runner = BenchmarkRunner(
         task_specs=build_task_specs()[:1],
         model_specs=_fake_model_specs()[:1],
@@ -112,7 +111,7 @@ def test_matrix_runner_writes_hardened_outputs(tmp_path: Path):
     results = runner.run(
         task_names=["debugging"],
         model_names=["primary_fake"],
-        strategy_names=["summary80", "barrier"],
+        strategy_names=["summary80", "barrier", "summary80_barrier"],
         window_budgets=[3072],
     )
 
@@ -132,57 +131,19 @@ def test_matrix_runner_writes_hardened_outputs(tmp_path: Path):
         "p_value",
         "contamination_rate",
         "scorer_agreement_rate",
-        "barrier_rescue_rate",
+        "delta_vs_summary80",
     } <= set(first.keys())
-    summary_run = next(record for record in results["runs"] if record["strategy"] == "summary80")
-    assert summary_run["prompt_tokens"] <= summary_run["usable_prompt_budget"]
-    audit_line = tmp_path.joinpath("audit_queue.jsonl").read_text().splitlines()[0]
-    assert '"strategy"' not in audit_line
+    assert "barrier_rescue_rate" not in first
+    summary_text = tmp_path.joinpath("summary.md").read_text()
+    assert "## Barrier vs Summary80" in summary_text
+    assert "## Summary80 + Barrier vs Barrier" in summary_text
+    assert "wins/ties/losses" in summary_text
 
 
-def test_adaptive_extension_promotes_group_to_max_seed_count(tmp_path: Path):
-    def build_tie_task(backend, model, window_budget, overflow_ratio, seed):
-        return TaskInstance(
-            name="tie_task",
-            system_prompt="Return a short tie.",
-            turns=(
-                {"role": "user", "content": "Intro"},
-                {"role": "user", "content": "Close the active note briefly."},
-            ),
-            facts=(),
-            metadata={"anchor_indexes": [1], "seed": seed},
-        )
-
-    task_spec = TaskSpec(
-        name="tie_task",
-        description="Forces tied scores across strategies so adaptive extension triggers.",
-        builder=build_tie_task,
-    )
-    runner = BenchmarkRunner(
-        task_specs=[task_spec],
-        model_specs=_fake_model_specs()[:1],
-        strategy_specs=build_default_strategy_specs(),
-        output_dir=tmp_path,
-        initial_seed_count=5,
-        max_seed_count=10,
-        response_budget=20,
-    )
-
-    runner.run(
-        task_names=["tie_task"],
-        model_names=["primary_fake"],
-        strategy_names=["summary80", "barrier"],
-        window_budgets=[3072],
-    )
-
-    run_records = tmp_path.joinpath("runs.jsonl").read_text().splitlines()
-    assert len(run_records) == 20
-
-
-def test_adaptive_extension_promotes_all_win_group_when_sign_test_is_not_yet_significant(tmp_path: Path):
+def test_adaptive_extension_promotes_group_when_barrier_pair_is_inconclusive(tmp_path: Path):
     task_spec = TaskSpec(
         name="win_task",
-        description="All paired seeds favor the barrier.",
+        description="Barrier beats the baseline, but not yet conclusively after five seeds.",
         builder=lambda backend, model, window_budget, overflow_ratio, seed: TaskInstance(
             name="win_task",
             system_prompt="Return labels.",
@@ -204,6 +165,7 @@ def test_adaptive_extension_promotes_all_win_group_when_sign_test_is_not_yet_sig
     for seed in range(1, 6):
         runner._results.append(_minimal_run_result(seed=seed, strategy="summary80", score=0.0))
         runner._results.append(_minimal_run_result(seed=seed, strategy="barrier", score=1.0, found=["fact"]))
+        runner._results.append(_minimal_run_result(seed=seed, strategy="summary80_barrier", score=1.0, found=["fact"]))
 
     extension_groups = runner._groups_requiring_extension(
         selected_tasks={"win_task": task_spec},
@@ -230,7 +192,7 @@ def test_summary80_uses_additional_summary_before_dropping_tail_messages():
         for index in range(1, 9)
     ]
 
-    state = _ensure_summary_fit(
+    state = ensure_summary_fit(
         backend=backend,
         model_name="fake",
         system_prompt="Summarize faithfully.",
@@ -249,12 +211,12 @@ def test_summary80_uses_additional_summary_before_dropping_tail_messages():
     assert backend.count_tokens(prompt_messages, model="fake") + 20 <= 80
 
 
-def test_default_matrix_scope_is_qwen_vs_summary_baseline():
+def test_default_matrix_scope_is_qwen_vs_three_strategies():
     model_specs = build_default_model_specs()
     strategy_specs = build_default_strategy_specs()
 
     assert [model.alias for model in model_specs] == ["qwen_local"]
-    assert [strategy.name for strategy in strategy_specs] == ["summary80", "score_only", "barrier"]
+    assert [strategy.name for strategy in strategy_specs] == ["summary80", "barrier", "summary80_barrier"]
 
 
 def test_non_resume_run_clears_existing_artifacts(tmp_path: Path):
@@ -310,77 +272,6 @@ def test_normalizers_handle_dates_ids_and_paths():
     assert normalize_value("src/retry_worker.py line 188", "path_line") == "src/retry_worker.py:188"
 
 
-def test_secondary_parser_handles_split_path_line_phrasing():
-    task = TaskInstance(
-        name="paths",
-        system_prompt="",
-        turns=(),
-        facts=(
-            FactSpec(
-                name="file_line",
-                canonical_value="src/retry_worker.py line 188",
-                parser_id="path_line",
-                normalizer_id="path_line",
-            ),
-        ),
-    )
-
-    score = task.score_response("The patch landed in `src/retry_worker.py` on line 188 after the incident review.")
-    assert score["score"] == 1.0
-    assert score["secondary_score"] == 1.0
-    assert score["scorer_agreement"]
-
-
-def test_debugging_scorer_handles_natural_equivalent_phrasing():
-    task = TaskInstance(
-        name="debugging",
-        system_prompt="",
-        turns=(),
-        facts=(
-            FactSpec(name="function", canonical_value="process_batch()", parser_id="symbol", normalizer_id="symbol"),
-            FactSpec(name="trigger", canonical_value="batch_size > 1000", allowed_aliases=("batch_size exceeds 1000",)),
-            FactSpec(name="symptom", canonical_value="RSS climbs by 160MB per retry", allowed_aliases=("rss to climb by 160mb per retry",)),
-            FactSpec(name="version", canonical_value="v2.3.1", parser_id="version", normalizer_id="version"),
-            FactSpec(name="file_line", canonical_value="src/retry_worker.py line 188", parser_id="path_line", normalizer_id="path_line"),
-            FactSpec(name="root_cause", canonical_value="retry buffer keeps the warmed arrays pinned in the numpy cache", allowed_aliases=("retry buffer pinning warmed arrays in the numpy cache",)),
-            FactSpec(name="remediation", canonical_value="clear the numpy cache after each retry window", allowed_aliases=("add a cache.clear() call immediately after each retry window",)),
-        ),
-    )
-
-    score = task.score_response(
-        "The live incident targets `process_batch()` in build v2.3.1, which fails when `batch_size` exceeds 1000. "
-        "In production, this causes RSS to climb by 160MB per retry due to the retry buffer pinning warmed arrays in the numpy cache. "
-        "The fix was applied at `src/retry_worker.py` line 188, adding a `cache.clear()` call immediately after each retry window."
-    )
-
-    assert score["score"] == 1.0
-    assert score["secondary_score"] == 1.0
-    assert score["scorer_agreement"]
-
-
-def test_debugging_root_cause_specific_alias_still_scores_correct():
-    value = "retry buffer keeps the warmed arrays pinned in the numpy cache"
-    task = TaskInstance(
-        name="debugging",
-        system_prompt="",
-        turns=(),
-        facts=(
-            FactSpec(
-                name="root_cause",
-                canonical_value=value,
-                allowed_aliases=tuple(alias for alias in DEBUGGING_VALUES["root_cause"][value] if alias != value),
-                wrong_aliases=DEBUGGING_VALUES["root_cause"]["numpy cache retains the input array after warmup"],
-                parser_id="phrase",
-                normalizer_id="phrase",
-            ),
-        ),
-    )
-
-    score = task.score_response("The real issue was numpy arrays being pinned in the cache during retries.")
-    assert score["score"] == 1.0
-    assert score["wrong"] == []
-
-
 def test_debugging_root_cause_retry_buffer_identifier_alias_scores_correct():
     value = "retry buffer keeps the warmed arrays pinned in the numpy cache"
     task = TaskInstance(
@@ -404,56 +295,6 @@ def test_debugging_root_cause_retry_buffer_identifier_alias_scores_correct():
     assert score["wrong"] == []
 
 
-def test_debugging_root_cause_generic_phrasing_is_missing_not_wrong():
-    value = "retry buffer keeps the warmed arrays pinned in the numpy cache"
-    task = TaskInstance(
-        name="debugging",
-        system_prompt="",
-        turns=(),
-        facts=(
-            FactSpec(
-                name="root_cause",
-                canonical_value=value,
-                allowed_aliases=tuple(alias for alias in DEBUGGING_VALUES["root_cause"][value] if alias != value),
-                wrong_aliases=DEBUGGING_VALUES["root_cause"]["numpy cache retains the input array after warmup"],
-                parser_id="phrase",
-                normalizer_id="phrase",
-            ),
-        ),
-    )
-
-    score = task.score_response("The incident looked like a generic numpy cache retention problem.")
-    assert score["score"] == 0.0
-    assert score["wrong"] == []
-    assert score["missing"] == ["root_cause"]
-
-
-def test_debugging_remediation_exact_retry_window_phrase_beats_fuzzy_batch_distractor():
-    value = "clear the numpy cache after each retry window"
-    task = TaskInstance(
-        name="debugging",
-        system_prompt="",
-        turns=(),
-        facts=(
-            FactSpec(
-                name="remediation",
-                canonical_value=value,
-                allowed_aliases=tuple(alias for alias in DEBUGGING_VALUES["remediation"][value] if alias != value),
-                wrong_aliases=DEBUGGING_VALUES["remediation"]["cache.clear() after each batch"],
-                parser_id="phrase",
-                normalizer_id="phrase",
-            ),
-        ),
-    )
-
-    score = task.score_response(
-        "The fix was deployed by adding a cache.clear() call immediately after each retry window to release the memory."
-    )
-    assert score["score"] == 1.0
-    assert score["wrong"] == []
-    assert score["secondary_score"] == 1.0
-
-
 def test_task_construction_rejects_overly_keyword_aligned_prompt():
     with pytest.raises(ValueError):
         _choose_prompt_variant(
@@ -462,63 +303,6 @@ def test_task_construction_rejects_overly_keyword_aligned_prompt():
             distractor_values=["flush_backlog()", "v2.3.4"],
             prompt_variants=("Use process_batch() on v2.3.1 in the final note.",),
         )
-
-
-def test_barrier_rescue_requires_protected_anchor_context(tmp_path: Path):
-    runner = BenchmarkRunner(
-        task_specs=[],
-        model_specs=_fake_model_specs()[:1],
-        strategy_specs=build_default_strategy_specs(),
-        output_dir=tmp_path,
-        initial_seed_count=1,
-        max_seed_count=1,
-    )
-    score_only = _minimal_run_result(
-        strategy="score_only",
-        fact_results=[{"name": "order_id", "status": "missing", "source_message_indexes": [1]}],
-        selected_indexes=[7, 9],
-    )
-    barrier = _minimal_run_result(
-        strategy="barrier",
-        score=1.0,
-        found=["order_id"],
-        fact_results=[{"name": "order_id", "status": "correct", "source_message_indexes": [1]}],
-        selected_indexes=[1, 7, 9],
-        protected_message_indexes=[1],
-        retained_anchor=True,
-        anchor_protected=True,
-    )
-    runner._results = [score_only, barrier]
-
-    runner._finalize_results()
-
-    barrier_result = next(result for result in runner._results if result.strategy == "barrier")
-    assert barrier_result.barrier_rescue
-    assert barrier_result.barrier_rescue_facts == ["order_id"]
-
-
-def test_must_review_rows_are_flagged_and_written_immediately(tmp_path: Path):
-    runner = BenchmarkRunner(
-        task_specs=[],
-        model_specs=_fake_model_specs()[:1],
-        strategy_specs=build_default_strategy_specs(),
-        output_dir=tmp_path,
-        initial_seed_count=1,
-        max_seed_count=1,
-    )
-    result = _minimal_run_result(
-        strategy="barrier",
-        score=0.857143,
-        secondary_score=1.0,
-        scorer_agreement=False,
-    )
-
-    runner._append_run_record(result)
-
-    written = tmp_path.joinpath("runs.jsonl").read_text().splitlines()[0]
-    assert '"audit_required": true' in written
-    audit_line = tmp_path.joinpath("audit_queue.jsonl").read_text().splitlines()[0]
-    assert '"review_reasons": ["scorer_disagreement"]' in audit_line
 
 
 def test_debugging_replay_seed_task_is_fixed_size_and_uses_tighter_leakage():
@@ -549,38 +333,17 @@ def test_root_cause_recap_prompts_force_short_plain_text_output():
     assert any("no heading or bullets" in variant for variant in variants)
     assert any("no markdown" in variant for variant in variants)
 
-    backend = FakeBackend()
-    task = build_debugging_replay_seed_task(
-        backend=backend,
-        model="fake",
-        source_seed=1,
-        template_name="root_cause_recap",
-        target_total_tokens=DEBUGGING_REPLAY_TARGET_TOKENS,
-    )
 
-    assert "one short plain-text sentence" in task.turns[3]["content"]
-    assert "one short plain-text sentence" in task.turns[5]["content"]
-    assert "one short plain-text sentence" in task.turns[7]["content"]
-    assert "No heading, no bullets" in task.turns[10]["content"]
-
-
-def test_generate_frozen_debugging_replay_corpus_produces_reusable_transcripts():
+def test_generate_scripted_debugging_replay_corpus_produces_reusable_transcripts():
     model = _fake_model_specs()[0]
     backend = model.backend_factory()
-    full_history = next(
-        strategy for strategy in build_debugging_replay_strategy_specs()
-        if strategy.name == "full_history"
-    )
 
-    transcripts = generate_frozen_debugging_replay_corpus(
+    transcripts = generate_scripted_debugging_replay_corpus(
         backend=backend,
         model=model,
-        response_budget=40,
         accepted_per_template=1,
         target_total_tokens=900,
         target_token_tolerance=300,
-        oracle_window=4096,
-        full_history_strategy=full_history,
     )
 
     assert len(transcripts) == 2
@@ -589,35 +352,33 @@ def test_generate_frozen_debugging_replay_corpus_produces_reusable_transcripts()
         assert transcript.messages[transcript.final_user_index]["role"] == "user"
         assert transcript.messages[transcript.final_user_index - 1]["role"] == "assistant"
         assert abs(transcript.metadata["transcript_prompt_tokens"] - 900) <= 300
-        assert transcript.metadata["oracle_score"] >= (6 / 7)
+        assert transcript.metadata["scripted_replay"] is True
 
 
-def test_generate_frozen_debugging_replay_corpus_fails_fast_when_acceptance_never_completes():
+def test_scripted_debugging_replay_assistant_replies_do_not_leak_scored_aliases():
     model = _fake_model_specs()[0]
     backend = model.backend_factory()
-    full_history = next(
-        strategy for strategy in build_debugging_replay_strategy_specs()
-        if strategy.name == "full_history"
+
+    transcripts = generate_scripted_debugging_replay_corpus(
+        backend=backend,
+        model=model,
+        accepted_per_template=1,
+        target_total_tokens=900,
+        target_token_tolerance=300,
     )
 
-    with pytest.raises(RuntimeError, match="Unable to build enough oracle-valid replay transcripts"):
-        generate_frozen_debugging_replay_corpus(
-            backend=backend,
-            model=model,
-            response_budget=40,
-            accepted_per_template=2,
-            target_total_tokens=900,
-            target_token_tolerance=300,
-            oracle_window=4096,
-            full_history_strategy=full_history,
-            max_source_seed=1,
-        )
+    for transcript in transcripts:
+        assistant_messages = [message["content"] for message in transcript.messages if message["role"] == "assistant"]
+        for assistant_text in assistant_messages:
+            for fact in transcript.facts:
+                for alias in (fact.canonical_value, *fact.allowed_aliases):
+                    assert not build_phrase_pattern(alias).search(assistant_text)
 
 
-def test_debugging_replay_aggregate_tracks_fact_accuracy_and_oracle_gap():
+def test_debugging_replay_aggregate_tracks_fact_accuracy_and_deltas():
     runs = [
         _minimal_run_result(
-            task="debugging_replay_v1",
+            task="debugging_replay",
             strategy="summary80",
             window_budget=3072,
             seed=1,
@@ -630,7 +391,7 @@ def test_debugging_replay_aggregate_tracks_fact_accuracy_and_oracle_gap():
             selected_indexes=[5],
         ),
         _minimal_run_result(
-            task="debugging_replay_v1",
+            task="debugging_replay",
             strategy="barrier",
             window_budget=3072,
             seed=1,
@@ -643,41 +404,41 @@ def test_debugging_replay_aggregate_tracks_fact_accuracy_and_oracle_gap():
             selected_indexes=[3, 5],
         ),
         _minimal_run_result(
-            task="debugging_replay_v1",
-            strategy="full_history",
-            window_budget=16384,
+            task="debugging_replay",
+            strategy="summary80_barrier",
+            window_budget=3072,
             seed=1,
-            score=1.0,
+            score=0.9,
             fact_results=[
                 {"name": "root_cause", "status": "correct"},
                 {"name": "file_line", "status": "correct"},
                 {"name": "remediation", "status": "correct"},
             ],
-            selected_indexes=[0, 1, 3, 5],
+            selected_indexes=[1, 3, 5],
         ),
     ]
 
     aggregates = aggregate_debugging_replay_results(runs)
     barrier = next(record for record in aggregates if record["strategy"] == "barrier")
+    hybrid = next(record for record in aggregates if record["strategy"] == "summary80_barrier")
     summary = next(record for record in aggregates if record["strategy"] == "summary80")
 
     assert barrier["root_cause_accuracy"] == 1.0
     assert barrier["source_index_3_selected_rate"] == 1.0
-    assert barrier["oracle_gap"] == pytest.approx(0.2)
     assert barrier["delta_vs_summary80"] == pytest.approx(0.5)
+    assert hybrid["delta_vs_summary80"] == pytest.approx(0.6)
     assert summary["root_cause_accuracy"] == 0.0
 
 
 def test_debugging_replay_profile_writes_expected_artifacts(tmp_path: Path):
-    results = run_debugging_replay_v1(
+    results = run_debugging_replay(
         output_dir=tmp_path,
         primary_local_model="fake",
         response_budget=40,
         accepted_per_template=1,
         target_total_tokens=900,
         target_token_tolerance=300,
-        constrained_window_budgets=(240, 360),
-        oracle_window=4096,
+        window_budgets=(240, 360),
         model_specs=_fake_model_specs(),
     )
 
@@ -688,17 +449,19 @@ def test_debugging_replay_profile_writes_expected_artifacts(tmp_path: Path):
     assert tmp_path.joinpath("summary.md").exists()
     assert tmp_path.joinpath("audit_queue.jsonl").exists()
     assert tmp_path.joinpath("progress.log").exists()
-    assert len(results["runs"]) == 18
-    assert len(results["aggregates"]) == 9
-    assert results["profile"] == "debugging_replay_v1"
+    assert len(results["runs"]) == 12
+    assert len(results["aggregates"]) == 6
+    assert results["profile"] == "debugging_replay"
     progress_log = tmp_path.joinpath("progress.log").read_text()
     assert "status=accepted" in progress_log
     assert "status=completed" in progress_log
+    assert "wins/ties/losses" in tmp_path.joinpath("summary.md").read_text()
+    audit_record = next(iter(tmp_path.joinpath("audit_queue.jsonl").read_text().splitlines()), None)
+    assert audit_record is not None
+    assert '"strategy":' in audit_record
 
     transcript_tokens_by_seed = {}
     for run in results["runs"]:
-        if run["strategy"] == "full_history":
-            continue
         transcript_tokens_by_seed.setdefault(run["seed"], set()).add(run["session_metadata"]["transcript_prompt_tokens"])
     assert all(len(values) == 1 for values in transcript_tokens_by_seed.values())
 
@@ -714,7 +477,7 @@ def test_debugging_replay_smoke_profile_uses_smoke_defaults(tmp_path: Path):
     )
 
     assert results["profile"] == "debugging_replay_smoke"
-    assert len(results["runs"]) == 10
-    assert len(results["aggregates"]) == 5
+    assert len(results["runs"]) == 6
+    assert len(results["aggregates"]) == 3
     summary_text = tmp_path.joinpath("summary.md").read_text()
     assert "- Profile: `debugging_replay_smoke`" in summary_text

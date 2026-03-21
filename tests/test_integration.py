@@ -1,3 +1,8 @@
+import sys
+
+import pytest
+
+from contextgc_barrier import demo
 from contextgc_barrier import ContextGCBarrier
 from tests.fake_backend import FakeBackend
 
@@ -60,10 +65,19 @@ def run_session(strategy: str) -> tuple[str, dict]:
     return final_response, cgc.context_state()
 
 
-def test_fake_backend_smoke_keeps_anchor_under_barrier():
-    recency_response, recency_state = run_session("recency")
+def test_raw_retention_strategies_beat_pure_summary_on_fake_backend():
+    summary_response, summary_state = run_session("summary80")
     barrier_response, barrier_state = run_session("barrier")
+    hybrid_response, hybrid_state = run_session("summary80_barrier")
 
-    assert score_response(barrier_response) >= score_response(recency_response)
+    assert score_response(barrier_response) >= score_response(summary_response)
+    assert score_response(hybrid_response) >= score_response(summary_response)
     assert any(item["index"] == 1 for item in barrier_state["selected_messages"])
-    assert all(item["index"] != 1 for item in recency_state["selected_messages"])
+    assert any(item["index"] == 1 for item in hybrid_state["selected_messages"])
+    assert all(item["index"] != 1 for item in summary_state["selected_messages"])
+
+
+def test_demo_cli_rejects_removed_all_strategy(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["demo", "--strategy", "all"])
+    with pytest.raises(SystemExit):
+        demo.main()
