@@ -63,7 +63,7 @@ The replay benchmark is the cleaner proof benchmark because only the retention p
 
 ## Runtime Notes
 
-The shared runtime is [ContextGCBarrier](/Users/pradeepsingh/code/contextgc_poc/contextgc_barrier/wrapper.py).
+The shared runtime is [ContextGCBarrier](contextgc_barrier/wrapper.py).
 
 Valid strategy ids are:
 
@@ -84,10 +84,10 @@ For summary strategies, `selected_messages` contains only raw source messages. T
 
 ## Repository Layout
 
-- [contextgc_barrier](/Users/pradeepsingh/code/contextgc_poc/contextgc_barrier): runtime selection, scoring, citation barrier, summary logic, local demo
-- [benchmark](/Users/pradeepsingh/code/contextgc_poc/benchmark): task generation, matrix runner, replay runner, stats, CLI
-- [tests](/Users/pradeepsingh/code/contextgc_poc/tests): unit and integration coverage
-- [spec.md](/Users/pradeepsingh/code/contextgc_poc/spec.md): plain-English benchmark framing
+- [contextgc_barrier](contextgc_barrier): runtime selection, scoring, citation barrier, summary logic, local demo
+- [benchmark](benchmark): task generation, matrix runner, replay runner, stats, CLI
+- [tests](tests): unit and integration coverage
+- [benchmark/results/debugging_replay](benchmark/results/debugging_replay): current benchmark output
 
 ## Setup
 
@@ -165,7 +165,7 @@ The scripted replay assistant turns are intentionally non-answer-bearing. They c
 
 ## Current Replay Result
 
-Latest full run: [summary.md](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay/summary.md)
+Latest full run: [summary.md](benchmark/results/debugging_replay/summary.md)
 
 This is the current benchmark to read. It uses `20` frozen debugging transcripts, `3` strategies, and `3` prompt windows.
 
@@ -185,7 +185,7 @@ xychart-beta
 | `4096` | `0.200` | `0.818` | `0.793` | Same result. `barrier` stays ahead. |
 | `16384` | `0.825` | `0.825` | `0.825` | Once the full transcript fits, the strategies tie. |
 
-The paired comparisons in [summary.md](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay/summary.md) support this reading:
+The paired comparisons in [summary.md](benchmark/results/debugging_replay/summary.md) support this reading:
 
 | Comparison | `3072` | `4096` | What to say publicly |
 |---|---|---|---|
@@ -198,7 +198,7 @@ Keeping the right raw context beats replacing old context with a lossy rolling s
 
 ## Audit Check
 
-I checked the `24` flagged rows in [audit_queue.jsonl](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay/audit_queue.jsonl) against [runs.jsonl](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay/runs.jsonl).
+I checked the `24` flagged rows in [audit_queue.jsonl](benchmark/results/debugging_replay/audit_queue.jsonl) against [runs.jsonl](benchmark/results/debugging_replay/runs.jsonl).
 
 | Audit finding | Count | What it means |
 |---|---:|---|
@@ -230,6 +230,6 @@ Also, the active codebase now only uses the three strategies in this README: `su
 
 ## Which Results To Cite
 
-If you reference results from this repo, use [benchmark/results/debugging_replay](/Users/pradeepsingh/code/contextgc_poc/benchmark/results/debugging_replay).
+If you reference results from this repo, use [benchmark/results/debugging_replay](benchmark/results/debugging_replay).
 
 That is the current benchmark output and the one this README is describing. Older result folders were intermediate work during benchmark design and are not the main story anymore.
