@@ -115,7 +115,7 @@ python -m spacy download en_core_web_sm
 Run the local demo for one strategy:
 
 ```bash
-python -m contextgc_barrier.demo --strategy barrier
+./.venv/bin/python -m contextgc_barrier.demo --strategy barrier
 ```
 
 Run the small proof profile:
@@ -213,23 +213,3 @@ I checked the `24` flagged rows in [audit_queue.jsonl](benchmark/results/debuggi
 | `summary80_barrier` | `3` | `1` | `1` |
 
 Manual read of the flagged rows says the benchmark is publishable with one honest caveat: a few rows still depend on scorer interpretation, so the claim should stay narrow and benchmark-specific.
-
-## Scope
-
-The current repo supports one narrow claim well:
-
-Keeping the right raw context is better than replacing old context with a lossy rolling summary on this debugging replay benchmark.
-
-It does not yet support bigger claims like:
-
-- "we solved long-term memory"
-- "the hybrid is better than plain barrier"
-- "this is already proven in production"
-
-Also, the active codebase now only uses the three strategies in this README: `summary80`, `barrier`, and `summary80_barrier`.
-
-## Which Results To Cite
-
-If you reference results from this repo, use [benchmark/results/debugging_replay](benchmark/results/debugging_replay).
-
-That is the current benchmark output and the one this README is describing. Older result folders were intermediate work during benchmark design and are not the main story anymore.
