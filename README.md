@@ -165,21 +165,3 @@ The paired comparisons in [summary.md](benchmark/results/debugging_replay/summar
 | `summary80_barrier` vs `barrier` | delta `-0.043`, `p=0.388` | delta `-0.025`, `p=1.000` | The hybrid does not beat plain `barrier` on this benchmark. |
 
 The short takeaway is simple: keeping the right raw context beats replacing old context with a lossy rolling summary.
-
-## Audit Notes
-
-I checked the `24` flagged rows in [audit_queue.jsonl](benchmark/results/debugging_replay/audit_queue.jsonl) against [runs.jsonl](benchmark/results/debugging_replay/runs.jsonl).
-
-| Audit finding | Count | What it means |
-|---|---:|---|
-| `contamination` | `17` | Mostly `summary80` pulling stale side-case facts under tight budgets. This strengthens the main benchmark story. |
-| `scorer_disagreement` | `4` | Small parser misses, mainly around `remediation` or `file_line`, not a new benchmark failure mode. |
-| `random_sample` | `3` | Spot-check rows chosen for manual review; no new issue pattern found. |
-
-| Strategy | Flagged rows | Contamination | Scorer disagreement |
-|---|---:|---:|---:|
-| `summary80` | `15` | `14` | `1` |
-| `barrier` | `6` | `2` | `2` |
-| `summary80_barrier` | `3` | `1` | `1` |
-
-The flagged rows do not change the main result. The only caveat is that a few rows still depend on scorer interpretation, so the claim should stay narrow and benchmark-specific.
