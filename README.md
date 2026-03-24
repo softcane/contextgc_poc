@@ -1,6 +1,6 @@
 # ContextGC Barrier
 
-ContextGC Barrier is a small research repo about one question:
+ContextGC Barrier is a small research repo about a question:
 
 When a conversation gets too long for the prompt window, which old messages should stay in the prompt?
 
